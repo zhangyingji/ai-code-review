@@ -52,3 +52,6 @@ demo_reports/
 *.html
 *.json
 demo_*.md
+
+# IDE
+.qoder/
