@@ -1,0 +1,71 @@
+# 本地配置示例
+# 复制此文件为 config.local.yaml 并填入真实配置
+
+# GitLab 配置
+gitlab:
+  url: "https://gitlab.example.com"
+  private_token: "glpat-xxxxxxxxxxxxxxxxxxxx"  # 在 GitLab 设置中创建
+  project_id: 123  # 项目 ID,在项目设置中查看
+
+# 分支配置
+branch:
+  review_branch: "develop"  # 要评审的分支
+  base_branch: "main"     # 对比基准分支（必须指定）
+
+# 大模型配置
+llm:
+  # API 完整 URL，包含 /chat/completions 路径
+  # 例如: http://21.98.234.227:30681/r/ai-deploy-dsfp-prd/qwen-max/v1/chat/completions
+  api_url: "http://your-api-server:port/path/to/model/v1/chat/completions"
+  
+  # API 密钥
+  api_key: "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+  
+  # 模型名称，必须与 API 服务器的模型一致
+  # 例如: qwen-max、gpt-4、deepseek-chat
+  model: "qwen-max"
+  temperature: 0.3
+  max_tokens: 2000
+  
+  # 是否启用深度思考模式
+  # 设置为 true 即可启用（某些模型并不支持）
+  enable_thinking: false
+
+# 评审规则配置 - 可根据项目需求调整
+review_rules:
+  code_style:
+    enabled: true
+    rules:
+      - "检查代码格式是否符合团队规范"
+      - "检查命名是否清晰且符合约定"
+      - "检查是否有过长的函数或类"
+  
+  security:
+    enabled: true
+    rules:
+      - "检查是否有SQL注入风险"
+      - "检查是否有XSS漏洞风险"
+      - "检查敏感信息是否硬编码"
+      - "检查是否有不安全的依赖"
+  
+  performance:
+    enabled: true
+    rules:
+      - "检查是否有不必要的循环嵌套"
+      - "检查是否有内存泄漏风险"
+      - "检查数据库查询是否优化"
+  
+  best_practices:
+    enabled: true
+    rules:
+      - "检查错误处理是否完善"
+      - "检查是否有适当的日志记录"
+      - "检查是否遵循SOLID原则"
+      - "检查代码复用性"
+
+# 报告配置
+report:
+  output_dir: "./reports"
+  format: "html"  # 可选: html, markdown, json
+  group_by_author: true
+  include_code_snippet: true
