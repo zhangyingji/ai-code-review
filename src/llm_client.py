@@ -163,7 +163,8 @@ class LLMClient:
     "issues": [
         {{
             "severity": "critical/major/minor/suggestion",
-            "line": "相关行号或行号范围",
+            "line": "具体行号或行号范围(如 42 或 42-58)",
+            "method": "涉及的方法名称(如 getUserInfo, render等,可选)",
             "category": "code_style/security/performance/best_practices",
             "description": "问题描述",
             "suggestion": "改进建议"
@@ -172,8 +173,26 @@ class LLMClient:
     "summary": "整体评价"
 }}
 
-如果没有发现问题,issues数组可以为空,但请给出正面的summary。
-只返回JSON,不要有其他内容。"""
+要求:
+1. 每个问题必须包含具体的行号(不能是'N/A'),格式为 '42' 或 '42-58'
+2. 对于前端/后端代码,尽量识别并填写涉及的方法/函数名称
+3. 如果没有发现问题,issues数组可以为空,但请给出正面的summary
+4. 只返回JSON,不要有其他内容
+
+示例:
+{{
+    "issues": [
+        {{
+            "severity": "major",
+            "line": "42-58",
+            "method": "getUserInfo",
+            "category": "security",
+            "description": "未进行输入验证,容易遭受SQL注入攻击",
+            "suggestion": "使用参数化查询或ORM框架处理数据库操作"
+        }}
+    ],
+    "summary": "发现1个安全问题,建议修复"
+}}"""
 
         messages = [
             {"role": "system", "content": "你是一个专业的代码评审专家,擅长发现代码中的问题并给出改进建议。"},

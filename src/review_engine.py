@@ -54,6 +54,8 @@ class ReviewEngine:
         """
         判断文件是否需要评审
         
+        支持的文件类型: Python, JavaScript, TypeScript, Vue, Java, C++, C#, Go, 等技术文件
+        
         Args:
             file_path: 文件路径
             
@@ -65,7 +67,8 @@ class ReviewEngine:
             '.md', '.txt', '.json', '.yaml', '.yml', 
             '.lock', '.gitignore', '.dockerignore',
             '.png', '.jpg', '.jpeg', '.gif', '.svg',
-            '.ico', '.pdf', '.zip', '.tar', '.gz'
+            '.ico', '.pdf', '.zip', '.tar', '.gz',
+            '.woff', '.woff2', '.ttf', '.eot'  # 字体文件
         ]
         
         # 忽略的目录
@@ -130,6 +133,16 @@ class ReviewEngine:
         review_result['deletions'] = diff_info.get('deletions', 0)
         review_result['new_file'] = diff_info.get('new_file', False)
         review_result['renamed_file'] = diff_info.get('renamed_file', False)
+        
+        # 为每个问题添加代码段落
+        if review_result.get('issues'):
+            for issue in review_result['issues']:
+                code_snippet = self._extract_code_snippet(
+                    diff_info.get('diff', ''),
+                    issue.get('line', '')
+                )
+                if code_snippet:
+                    issue['code_snippet'] = code_snippet
         
         return review_result
     
@@ -326,3 +339,98 @@ class ReviewEngine:
                 severity_count[severity] += 1
         
         return severity_count
+    
+    def _extract_code_snippet(self, diff: str, line_info: str) -> Optional[Dict]:
+        """
+        从 diff 中提取指定行号的代码段落
+        
+        Args:
+            diff: 代码差异文本
+            line_info: 行号信息，格式为 "42" 或 "42-58"
+            
+        Returns:
+            包含代码段落的字典，包括起始行、结束行和代码列表
+        """
+        if not diff or not line_info:
+            return None
+        
+        try:
+            # 解析行号信息
+            if '-' in str(line_info):
+                parts = str(line_info).split('-')
+                start_line = int(parts[0])
+                end_line = int(parts[1])
+            else:
+                start_line = int(line_info)
+                end_line = start_line + 5  # 默认显示6行（当前行前2行，后3行）
+            
+            # 从 diff 中提取代码
+            # diff 格式示例：
+            # @@ -42,7 +42,10 @@ def method_name():
+            #  context_line
+            # -old_line
+            # +new_line
+            
+            lines = diff.split('\n')
+            code_lines = []
+            current_line_num = 0
+            in_range = False
+            
+            for line in lines:
+                # 跳过 diff 头部和其他元数据
+                if line.startswith('@@'):
+                    # 从 @@ 行中提取起始行号
+                    import re
+                    match = re.search(r'\+([0-9]+)', line)
+                    if match:
+                        current_line_num = int(match.group(1))
+                        in_range = False
+                    continue
+                
+                if line.startswith('---') or line.startswith('+++'):
+                    continue
+                
+                # 处理代码行
+                if in_range or (start_line <= current_line_num <= end_line + 5):
+                    in_range = True
+                    
+                    if line.startswith('-'):
+                        # 删除的行，不计数
+                        code_lines.append({
+                            'line_num': current_line_num,
+                            'type': 'deleted',
+                            'content': line[1:],
+                            'in_range': start_line <= current_line_num <= end_line
+                        })
+                    elif line.startswith('+'):
+                        code_lines.append({
+                            'line_num': current_line_num,
+                            'type': 'added',
+                            'content': line[1:],
+                            'in_range': start_line <= current_line_num <= end_line
+                        })
+                        current_line_num += 1
+                    else:
+                        # 上下文行
+                        code_lines.append({
+                            'line_num': current_line_num,
+                            'type': 'context',
+                            'content': line[1:] if line.startswith(' ') else line,
+                            'in_range': start_line <= current_line_num <= end_line
+                        })
+                        current_line_num += 1
+                    
+                    if current_line_num > end_line + 5:
+                        break
+            
+            if code_lines:
+                return {
+                    'start_line': start_line,
+                    'end_line': end_line,
+                    'lines': code_lines
+                }
+        
+        except Exception as e:
+            logger.debug(f"提取代码段落失败: {e}")
+        
+        return None
