@@ -166,11 +166,7 @@ class ReportGenerator:
                 lines.append(f"  - 次要: {severity['minor']}")
                 lines.append(f"  - 建议: {severity['suggestion']}")
                 
-                # 列出该作者的提交
-                if author['commits']:
-                    lines.append(f"\n**提交记录**:")
-                    for commit in author['commits'][:5]:  # 只显示前5个
-                        lines.append(f"- [{commit['short_id']}] {commit['title']}")
+                # ... existing code ...
                 
                 # 列出该作者相关的问题 - 优先显示严重问题
                 if author['issues']:

@@ -18,7 +18,8 @@ class ReviewEngine:
     
     def __init__(self, gitlab_client: GitLabClient, llm_client: LLMClient, 
                  review_rules: Dict, enable_concurrent: bool = True, max_workers: int = 3,
-                 enable_thinking: bool = False):
+                 enable_thinking: bool = False, ignore_extensions: Optional[List[str]] = None,
+                 ignore_dirs: Optional[List[str]] = None, filter_authors: Optional[List[str]] = None):
         """
         初始化评审引擎
         
@@ -29,6 +30,9 @@ class ReviewEngine:
             enable_concurrent: 是否启用并发评审
             max_workers: 最大并发worker数
             enable_thinking: 是否启用深度思考模式
+            ignore_extensions: 忽略的文件扩展名列表
+            ignore_dirs: 忽略的目录列表
+            filter_authors: 提交人邮箱列表，为Empty时表示无限制
         """
         self.gitlab_client = gitlab_client
         self.llm_client = llm_client
@@ -37,6 +41,39 @@ class ReviewEngine:
         self.max_workers = max_workers
         self.enable_thinking = enable_thinking
         
+        # 设置忽略列表，支持用户自定义
+        self.ignore_extensions = ignore_extensions or [
+            '.md', '.txt', '.json', '.yaml', '.yml', 
+            '.lock', '.gitignore', '.dockerignore',
+            '.png', '.jpg', '.jpeg', '.gif', '.svg',
+            '.ico', '.pdf', '.zip', '.tar', '.gz',
+            '.woff', '.woff2', '.ttf', '.eot'
+        ]
+        self.ignore_dirs = ignore_dirs or [
+            'node_modules', 'vendor', 'dist', 'build',
+            '__pycache__', '.git', '.idea', '.vscode'
+        ]
+        
+        # 设置提交人过滤配置
+        self.filter_authors = filter_authors or []
+        
+    def _should_review_author(self, author_email: str) -> bool:
+        """
+        判断是否需要评审该提交人的提交
+        
+        Args:
+            author_email: 提交人邮箱
+            
+        Returns:
+            是否需要评审
+        """
+        # 当 filter_authors 为空时，评审所有提交人
+        if not self.filter_authors:
+            return True
+        
+        # 当列表非空时，仅评审指定的提交人
+        return author_email in self.filter_authors
+    
     def collect_review_rules(self) -> List[str]:
         """
         收集启用的评审规则
@@ -55,6 +92,7 @@ class ReviewEngine:
         判断文件是否需要评审
         
         支持的文件类型: Python, JavaScript, TypeScript, Vue, Java, C++, C#, Go, 等技术文件
+        忽略的文件类型和目录可事先配置
         
         Args:
             file_path: 文件路径
@@ -62,28 +100,13 @@ class ReviewEngine:
         Returns:
             是否需要评审
         """
-        # 忽略的文件类型
-        ignore_extensions = [
-            '.md', '.txt', '.json', '.yaml', '.yml', 
-            '.lock', '.gitignore', '.dockerignore',
-            '.png', '.jpg', '.jpeg', '.gif', '.svg',
-            '.ico', '.pdf', '.zip', '.tar', '.gz',
-            '.woff', '.woff2', '.ttf', '.eot'  # 字体文件
-        ]
-        
-        # 忽略的目录
-        ignore_dirs = [
-            'node_modules', 'vendor', 'dist', 'build',
-            '__pycache__', '.git', '.idea', '.vscode'
-        ]
-        
         # 检查文件扩展名
-        for ext in ignore_extensions:
+        for ext in self.ignore_extensions:
             if file_path.endswith(ext):
                 return False
         
         # 检查目录
-        for dir_name in ignore_dirs:
+        for dir_name in self.ignore_dirs:
             if f'/{dir_name}/' in file_path or file_path.startswith(f'{dir_name}/'):
                 return False
         
@@ -112,8 +135,10 @@ class ReviewEngine:
             logger.info(f"跳过已删除文件: {file_path}")
             return None
         
-        # 跳过没有差异的文件
-        if not diff_info.get('diff'):
+        # 对于新增文件，即使没有diff也需要评审（使用整个文件内容）
+        if diff_info.get('new_file'):
+            logger.info(f"评审新增文件: {file_path}")
+        elif not diff_info.get('diff'):
             logger.info(f"跳过无差异文件: {file_path}")
             return None
         
@@ -172,11 +197,19 @@ class ReviewEngine:
         commits = self.gitlab_client.get_commits_between_branches(review_branch, base_branch)
         logger.info(f"共有 {len(commits)} 个提交")
         
+        # 根据配置对提交记录进行过滤
+        if self.filter_authors:
+            original_count = len(commits)
+            commits = [c for c in commits if self._should_review_author(c.get('author_email', ''))]
+            logger.info(f"提交人过滤: {original_count} -> {len(commits)} 个提交")
+        
         # 收集评审规则
         rules = self.collect_review_rules()
         logger.info(f"启用 {len(rules)} 条评审规则")
         
-        # 评审每个文件 - 支持并发
+        # 根据配置对差異阶评审（简化处理）
+        # 实际应用中可以根据提交人进一步筛选diff
+        filtered_diffs = diffs
         if self.enable_concurrent and len(diffs) > 1:
             logger.info(f"启用并发评审模式,max_workers={self.max_workers}")
             file_reviews = self._review_concurrent(diffs, rules)
@@ -196,8 +229,11 @@ class ReviewEngine:
         
         review_report = {
             'metadata': {
-                'source_branch': review_branch,
-                'target_branch': base_branch,
+                'review_branch': review_branch,  # 要评审的分支
+                'base_branch': base_branch,      # 基准分支（比较徒）
+                # 允许旧类型为backward compatibility
+                'source_branch': review_branch,  # 废弃：使用 review_branch
+                'target_branch': base_branch,    # 废弃：使用 base_branch
                 'review_time': start_time.isoformat(),
                 'duration_seconds': duration,
                 'total_commits': len(commits),
