@@ -111,6 +111,7 @@ def main():
     parser = argparse.ArgumentParser(description='代码评审工具 - 自动评审GitLab代码变更')
     parser.add_argument('-c', '--config', default='config.yaml', 
                        help='配置文件路径 (默认: config.yaml)')
+    parser.add_argument('-p', '--project', help='项目名称 (当配置中有多个项目时，用此参数选择特定项目)')
     parser.add_argument('-s', '--source', help='源分支名称 (覆盖配置文件)')
     parser.add_argument('-t', '--target', help='目标分支名称 (覆盖配置文件)')
     parser.add_argument('-f', '--format', choices=['html', 'markdown', 'json'],
@@ -144,11 +145,36 @@ def main():
         logger.info("="*70)
         logger.info("代码评审系统启动")
         logger.info("="*70)
-        logger.info(f"加载配置文件: {args.config}")
-        if log_file_path:
-            logger.info(f"日志文件: {log_file_path}")
+        # 获取项目配置
+        project_id = config['gitlab'].get('project_id')
+        if not project_id:
+            # 如果没有 project_id，检查是否有 projects 列表
+            projects = config['gitlab'].get('projects', [])
+            if not projects:
+                logger.error("错误: 未配置项目ID或项目列表")
+                return 1
+            
+            # 如果指定了 --project 参数，使用该项目
+            if args.project:
+                found_project = None
+                for proj in projects:
+                    if proj.get('name') == args.project:
+                        found_project = proj
+                        break
+                
+                if not found_project:
+                    logger.error(f"错误: 未找到项目 '{args.project}'")
+                    logger.error(f"可用项目: {', '.join(p.get('name', '') for p in projects)}")
+                    return 1
+                
+                project_id = found_project['id']
+                logger.info(f"使用项目: {args.project} (ID: {project_id})")
+            else:
+                logger.error(f"错误: 配置中有多个项目，请使用 -p/--project 指定项目")
+                logger.error(f"可用项目: {', '.join(p.get('name', '') for p in projects)}")
+                return 1
         
-        # 命令行参数覆盖配置
+        logger.info(f"使用项目 ID: {project_id}")
         source_branch = args.source or config['branch'].get('review_branch', '')
         target_branch = args.target or config['branch'].get('base_branch', '')
         report_format = args.format or config['report']['format']
@@ -172,7 +198,7 @@ def main():
         gitlab_client = GitLabClient(
             url=config['gitlab']['url'],
             private_token=config['gitlab']['private_token'],
-            project_id=config['gitlab']['project_id']
+            project_id=project_id
         )
         
         # 初始化大模型客户端
@@ -196,13 +222,25 @@ def main():
         enable_concurrent = performance_config.get('enable_concurrent', True)
         max_workers = performance_config.get('max_workers', 3)
         
+        # 获取文件忽略配置
+        file_ignore_config = config.get('file_filter', {})
+        ignore_extensions = file_ignore_config.get('ignore_extensions')
+        ignore_dirs = file_ignore_config.get('ignore_dirs')
+        
+        # 获取提交人过滤配置
+        committer_filter_config = config.get('committer_filter', {})
+        filter_authors = committer_filter_config.get('authors', [])
+        
         review_engine = ReviewEngine(
             gitlab_client=gitlab_client,
             llm_client=llm_client,
             review_rules=config['review_rules'],
             enable_concurrent=enable_concurrent,
             max_workers=max_workers,
-            enable_thinking=enable_thinking
+            enable_thinking=enable_thinking,
+            ignore_extensions=ignore_extensions,
+            ignore_dirs=ignore_dirs,
+            filter_authors=filter_authors
         )
         
         # 执行评审

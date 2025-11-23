@@ -7,7 +7,23 @@ import json
 from typing import Dict, List
 from datetime import datetime
 from jinja2 import Template
+from src.simple_html_template import SIMPLE_HTML_TEMPLATE
 import logging
+
+try:
+    from openpyxl import Workbook as OpenpyxlWorkbook
+    from openpyxl.styles import Font as OpenpyxlFont, PatternFill as OpenpyxlPatternFill
+    from openpyxl.styles import Alignment as OpenpyxlAlignment, Border as OpenpyxlBorder
+    from openpyxl.styles import Side as OpenpyxlSide
+    OPENPYXL_AVAILABLE = True
+except ImportError:
+    OPENPYXL_AVAILABLE = False
+    OpenpyxlWorkbook = None  # type: ignore
+    OpenpyxlFont = None  # type: ignore
+    OpenpyxlPatternFill = None  # type: ignore
+    OpenpyxlAlignment = None  # type: ignore
+    OpenpyxlBorder = None  # type: ignore
+    OpenpyxlSide = None  # type: ignore
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -53,7 +69,7 @@ class ReportGenerator:
         
         Args:
             review_data: 评审数据
-            format: 报告格式 (html, markdown, json)
+            format: 报告格式 (html, markdown, json, excel)
             group_by_author: 是否按作者分组
             
         Returns:
@@ -71,6 +87,14 @@ class ReportGenerator:
         elif format == "json":
             filename = f"review_{source_branch}_{timestamp}.json"
             content = json.dumps(review_data, indent=2, ensure_ascii=False)
+        elif format == "excel":
+            if not OPENPYXL_AVAILABLE:
+                raise ImportError("openpyxl 库未安装，请运行: pip install openpyxl")
+            filename = f"review_{source_branch}_{timestamp}.xlsx"
+            filepath = os.path.join(self.output_dir, filename)
+            self._generate_excel_report(review_data, filepath, group_by_author)
+            logger.info(f"报告已生成: {filepath}")
+            return filepath
         else:
             raise ValueError(f"不支持的格式: {format}")
         
@@ -82,7 +106,7 @@ class ReportGenerator:
         return filepath
     
     def _generate_html_report(self, review_data: Dict, group_by_author: bool) -> str:
-        """生成HTML格式报告"""
+        """生成HTML格式报告 - 使用简化模板"""
         # 对所有问题进行排序（输出前）
         if group_by_author and review_data.get('author_stats'):
             for author in review_data['author_stats']:
@@ -93,11 +117,10 @@ class ReportGenerator:
             if file_review.get('issues'):
                 file_review['issues'] = self._sort_issues_by_severity(file_review['issues'])
         
-        template = Template(HTML_TEMPLATE)
+        # 使用简化模板
+        template = Template(SIMPLE_HTML_TEMPLATE)
         return template.render(
             review_data=review_data,
-            group_by_author=group_by_author,
-            severity_colors=SEVERITY_COLORS,
             severity_labels=SEVERITY_LABELS
         )
     
@@ -143,11 +166,7 @@ class ReportGenerator:
                 lines.append(f"  - 次要: {severity['minor']}")
                 lines.append(f"  - 建议: {severity['suggestion']}")
                 
-                # 列出该作者的提交
-                if author['commits']:
-                    lines.append(f"\n**提交记录**:")
-                    for commit in author['commits'][:5]:  # 只显示前5个
-                        lines.append(f"- [{commit['short_id']}] {commit['title']}")
+                # ... existing code ...
                 
                 # 列出该作者相关的问题 - 优先显示严重问题
                 if author['issues']:
@@ -201,6 +220,266 @@ class ReportGenerator:
                     lines.append("")
         
         return "\n".join(lines)
+    
+    def _generate_excel_report(self, review_data: Dict, filepath: str, group_by_author: bool) -> None:
+        """生成Excel格式报告"""
+        if not OPENPYXL_AVAILABLE:
+            raise ImportError("openpyxl 库未安装")
+        
+        wb = OpenpyxlWorkbook()  # type: ignore
+        
+        # 削除openpyxl默认创建的空白 Sheet
+        if wb.sheetnames and wb.sheetnames[0] == 'Sheet':
+            wb.remove(wb[wb.sheetnames[0]])  # type: ignore
+        header_fill = OpenpyxlPatternFill(start_color="0366D6", end_color="0366D6", fill_type="solid")  # type: ignore
+        header_font = OpenpyxlFont(bold=True, color="FFFFFF", size=11)  # type: ignore
+        critical_fill = OpenpyxlPatternFill(start_color="FFD7D7", end_color="FFD7D7", fill_type="solid")  # type: ignore
+        major_fill = OpenpyxlPatternFill(start_color="FFE5B4", end_color="FFE5B4", fill_type="solid")  # type: ignore
+        minor_fill = OpenpyxlPatternFill(start_color="FFFACD", end_color="FFFACD", fill_type="solid")  # type: ignore
+        center_align = OpenpyxlAlignment(horizontal="center", vertical="center", wrap_text=True)  # type: ignore
+        left_align = OpenpyxlAlignment(horizontal="left", vertical="top", wrap_text=True)  # type: ignore
+        border = OpenpyxlBorder(  # type: ignore
+            left=OpenpyxlSide(style='thin'),  # type: ignore
+            right=OpenpyxlSide(style='thin'),  # type: ignore
+            top=OpenpyxlSide(style='thin'),  # type: ignore
+            bottom=OpenpyxlSide(style='thin')  # type: ignore
+        )
+        
+        # 1. 概览页
+        ws = wb.create_sheet("概览")
+        ws.column_dimensions['A'].width = 20
+        ws.column_dimensions['B'].width = 30
+        
+        row = 1
+        ws[f'A{row}'] = "代码评审报告"
+        ws[f'A{row}'].font = OpenpyxlFont(size=14, bold=True)  # type: ignore
+        ws.merge_cells(f'A{row}:B{row}')
+        row += 2
+        
+        # 基本信息
+        metadata = review_data['metadata']
+        info_items = [
+            ("源分支", metadata['source_branch']),
+            ("目标分支", metadata['target_branch']),
+            ("评审时间", metadata['review_time']),
+            ("评审耗时", f"{metadata['duration_seconds']:.2f} 秒"),
+            ("提交数量", str(metadata['total_commits'])),
+            ("文件变更", str(metadata['total_files_changed'])),
+        ]
+        
+        for label, value in info_items:
+            ws[f'A{row}'] = label
+            ws[f'A{row}'].font = OpenpyxlFont(bold=True)  # type: ignore
+            ws[f'B{row}'] = value
+            row += 1
+        
+        row += 1
+        # 统计信息
+        stats = review_data['statistics']
+        ws[f'A{row}'] = "问题统计"
+        ws[f'A{row}'].font = OpenpyxlFont(size=12, bold=True)  # type: ignore
+        row += 1
+        
+        stat_items = [
+            ("总问题数", str(stats['total_issues'])),
+            ("严重问题", str(stats['by_severity']['critical'])),
+            ("主要问题", str(stats['by_severity']['major'])),
+            ("次要问题", str(stats['by_severity']['minor'])),
+            ("建议", str(stats['by_severity']['suggestion'])),
+            ("代码增加", f"+{stats['total_additions']}"),
+            ("代码删除", f"-{stats['total_deletions']}"),
+        ]
+        
+        for label, value in stat_items:
+            ws[f'A{row}'] = label
+            ws[f'A{row}'].font = OpenpyxlFont(bold=True)  # type: ignore
+            ws[f'B{row}'] = value
+            row += 1
+        
+        # 2. 问题详情页
+        ws_issues = wb.create_sheet("问题详情")
+        ws_issues.column_dimensions['A'].width = 15
+        ws_issues.column_dimensions['B'].width = 30
+        ws_issues.column_dimensions['C'].width = 15
+        ws_issues.column_dimensions['D'].width = 15
+        ws_issues.column_dimensions['E'].width = 50
+        ws_issues.column_dimensions['F'].width = 50
+        
+        # 表头
+        headers = ["严重程度", "文件", "行号", "方法", "问题描述", "改进建议"]
+        for col, header in enumerate(headers, 1):
+            cell = ws_issues.cell(row=1, column=col)
+            cell.value = header
+            cell.fill = header_fill
+            cell.font = header_font
+            cell.alignment = center_align
+            cell.border = border
+        
+        row = 2
+        
+        # 收集所有问题
+        all_issues = []
+        for file_review in review_data.get('file_reviews', []):
+            for issue in file_review.get('issues', []):
+                issue_copy = issue.copy()
+                issue_copy['file_path'] = file_review['file_path']
+                all_issues.append(issue_copy)
+        
+        # 按严重程度排序
+        all_issues = self._sort_issues_by_severity(all_issues)
+        
+        # 填充数据
+        for issue in all_issues:
+            severity = issue['severity']
+            
+            ws_issues.cell(row=row, column=1).value = SEVERITY_LABELS.get(severity, severity)
+            ws_issues.cell(row=row, column=2).value = issue.get('file_path', 'N/A')
+            ws_issues.cell(row=row, column=3).value = issue.get('line', 'N/A')
+            ws_issues.cell(row=row, column=4).value = issue.get('method', 'N/A')
+            ws_issues.cell(row=row, column=5).value = issue.get('description', '')
+            ws_issues.cell(row=row, column=6).value = issue.get('suggestion', '')
+            
+            # 应用样式和边框
+            for col in range(1, 7):
+                cell = ws_issues.cell(row=row, column=col)
+                cell.border = border
+                cell.alignment = left_align
+                
+                # 根据严重程度填充背景色
+                if severity == 'critical':
+                    cell.fill = critical_fill
+                elif severity == 'major':
+                    cell.fill = major_fill
+                elif severity == 'minor':
+                    cell.fill = minor_fill
+            
+            row += 1
+            
+            # 展示代码片段
+            if issue.get('code_snippet'):
+                # 添加空行
+                row += 1
+                
+                # 代码片段标题
+                code_title_row = row
+                ws_issues.cell(row=code_title_row, column=1).value = "代码片段:"
+                ws_issues.cell(row=code_title_row, column=1).font = OpenpyxlFont(bold=True, italic=True)  # type: ignore
+                ws_issues.merge_cells(f'A{code_title_row}:F{code_title_row}')
+                row += 1
+                
+                # 展示每一行代码
+                code_snippet = issue['code_snippet']
+                for code_line in code_snippet.get('lines', []):
+                    line_num = code_line.get('line_num', '')
+                    line_type = code_line.get('type', 'context')
+                    line_content = code_line.get('content', '')
+                    in_range = code_line.get('in_range', False)
+                    
+                    # 第一列：行号
+                    cell = ws_issues.cell(row=row, column=1)
+                    cell.value = str(line_num)
+                    cell.font = OpenpyxlFont(size=9, color="666666")  # type: ignore
+                    cell.border = border
+                    
+                    # 第二列：代码类型标记
+                    type_map = {'added': '+', 'deleted': '-', 'context': ' '}
+                    cell = ws_issues.cell(row=row, column=2)
+                    cell.value = type_map.get(line_type, ' ')
+                    cell.border = border
+                    
+                    # 第三列起：代码内容
+                    cell = ws_issues.cell(row=row, column=3)
+                    cell.value = line_content
+                    cell.border = border
+                    cell.alignment = left_align
+                    ws_issues.merge_cells(f'C{row}:F{row}')
+                    
+                    # 根据类型填充背景色
+                    if in_range:
+                        for col in range(1, 7):
+                            cell = ws_issues.cell(row=row, column=col)
+                            cell.fill = minor_fill  # 黄色高亮
+                    elif line_type == 'added':
+                        for col in range(1, 7):
+                            ws_issues.cell(row=row, column=col).fill = OpenpyxlPatternFill(start_color="D4EDDA", end_color="D4EDDA", fill_type="solid")  # type: ignore
+                    elif line_type == 'deleted':
+                        for col in range(1, 7):
+                            ws_issues.cell(row=row, column=col).fill = OpenpyxlPatternFill(start_color="F8D7DA", end_color="F8D7DA", fill_type="solid")  # type: ignore
+                    
+                    row += 1
+                
+                row += 1  # 添加闲置下一个问题前的空行
+        
+        # 3. 文件评审页
+        ws_files = wb.create_sheet("文件评审")
+        ws_files.column_dimensions['A'].width = 30
+        ws_files.column_dimensions['B'].width = 12
+        ws_files.column_dimensions['C'].width = 12
+        ws_files.column_dimensions['D'].width = 50
+        
+        headers = ["文件路径", "增加", "删除", "评审总结"]
+        for col, header in enumerate(headers, 1):
+            cell = ws_files.cell(row=1, column=col)
+            cell.value = header
+            cell.fill = header_fill
+            cell.font = header_font
+            cell.alignment = center_align
+            cell.border = border
+        
+        row = 2
+        for file_review in review_data.get('file_reviews', []):
+            ws_files.cell(row=row, column=1).value = file_review['file_path']
+            ws_files.cell(row=row, column=2).value = file_review['additions']
+            ws_files.cell(row=row, column=3).value = file_review['deletions']
+            ws_files.cell(row=row, column=4).value = file_review.get('summary', '')
+            
+            for col in range(1, 5):
+                cell = ws_files.cell(row=row, column=col)
+                cell.border = border
+                cell.alignment = left_align
+            
+            row += 1
+        
+        # 4. 按作者统计页（如果有）
+        if group_by_author and review_data.get('author_stats'):
+            ws_authors = wb.create_sheet("作者统计")
+            ws_authors.column_dimensions['A'].width = 15
+            ws_authors.column_dimensions['B'].width = 25
+            ws_authors.column_dimensions['C'].width = 10
+            ws_authors.column_dimensions['D'].width = 10
+            ws_authors.column_dimensions['E'].width = 10
+            ws_authors.column_dimensions['F'].width = 10
+            ws_authors.column_dimensions['G'].width = 10
+            ws_authors.column_dimensions['H'].width = 10
+            
+            headers = ["作者", "邮箱", "提交数", "文件数", "问题数", "严重", "主要", "次要"]
+            for col, header in enumerate(headers, 1):
+                cell = ws_authors.cell(row=1, column=col)
+                cell.value = header
+                cell.fill = header_fill
+                cell.font = header_font
+                cell.alignment = center_align
+                cell.border = border
+            
+            row = 2
+            for author in review_data['author_stats']:
+                ws_authors.cell(row=row, column=1).value = author['name']
+                ws_authors.cell(row=row, column=2).value = author['email']
+                ws_authors.cell(row=row, column=3).value = author['commit_count']
+                ws_authors.cell(row=row, column=4).value = author['file_count']
+                ws_authors.cell(row=row, column=5).value = author['issue_count']
+                ws_authors.cell(row=row, column=6).value = author['issue_by_severity']['critical']
+                ws_authors.cell(row=row, column=7).value = author['issue_by_severity']['major']
+                ws_authors.cell(row=row, column=8).value = author['issue_by_severity']['minor']
+                
+                for col in range(1, 9):
+                    cell = ws_authors.cell(row=row, column=col)
+                    cell.border = border
+                    cell.alignment = center_align
+                
+                row += 1
+        
+        wb.save(filepath)
 
 
 # 严重程度颜色映射
@@ -553,6 +832,97 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             color: #586069;
             margin-left: 5px;
         }
+        
+        /* 代码段落样式 */
+        .code-snippet {
+            background: #f6f8fa;
+            border: 1px solid #d1d5da;
+            border-radius: 6px;
+            margin: 10px 0;
+            font-family: 'Courier New', monospace;
+            font-size: 0.85em;
+            overflow-x: auto;
+        }
+        .code-snippet-header {
+            background: #f3f3f3;
+            padding: 8px 12px;
+            border-bottom: 1px solid #d1d5da;
+            font-weight: 600;
+            color: #24292e;
+            cursor: pointer;
+            user-select: none;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .code-snippet-header:hover {
+            background: #e8e8e8;
+        }
+        .code-snippet-toggle {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            text-align: center;
+            transition: transform 0.3s ease;
+        }
+        .code-snippet-toggle.collapsed {
+            transform: rotate(-90deg);
+        }
+        .code-snippet-content {
+            max-height: 400px;
+            overflow-y: auto;
+            transition: max-height 0.3s ease;
+        }
+        .code-snippet-content.collapsed {
+            max-height: 0;
+            overflow: hidden;
+        }
+        .code-line {
+            display: flex;
+            padding: 2px 0;
+            line-height: 1.5;
+        }
+        .code-line-num {
+            width: 50px;
+            text-align: right;
+            padding-right: 12px;
+            color: #586069;
+            background: #f6f8fa;
+            user-select: none;
+            border-right: 1px solid #d1d5da;
+            flex-shrink: 0;
+        }
+        .code-line-content {
+            flex: 1;
+            padding: 0 12px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            color: #24292e;
+        }
+        .code-line.added {
+            background: #f0f9ff;
+        }
+        .code-line.added .code-line-num {
+            background: #cce5ff;
+        }
+        .code-line.added .code-line-content {
+            color: #0366d6;
+        }
+        .code-line.deleted {
+            background: #fef2f2;
+        }
+        .code-line.deleted .code-line-num {
+            background: #ffd7d7;
+        }
+        .code-line.deleted .code-line-content {
+            color: #cb2431;
+        }
+        .code-line.in-range {
+            background-color: #fff3cd !important;
+        }
+        .code-line.in-range .code-line-num {
+            background-color: #ffe5a1 !important;
+        }
     </style>
 </head>
 <body>
@@ -579,23 +949,23 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         <div class="dashboard">
             <h2>📈 关键指标概览</h2>
             <div class="dashboard-grid">
-                <div class="dashboard-item">
+                <div class="dashboard-item" onclick="filterIssuesBySeverity('all')" style="cursor: pointer; border: 2px solid transparent;" onmouseover="this.style.borderColor='#0366d6';" onmouseout="this.style.borderColor='transparent';">
                     <div class="dashboard-item-label">总问题数</div>
                     <div class="dashboard-item-value">{{ review_data.statistics.total_issues }}</div>
                 </div>
-                <div class="dashboard-item">
+                <div class="dashboard-item" onclick="filterIssuesBySeverity('critical')" style="cursor: pointer; border: 2px solid transparent;" onmouseover="this.style.borderColor='#ff6b6b';" onmouseout="this.style.borderColor='transparent';">
                     <div class="dashboard-item-label">严重问题</div>
                     <div class="dashboard-item-value" style="color: #ff6b6b;">{{ review_data.statistics.by_severity.critical }}</div>
                 </div>
-                <div class="dashboard-item">
+                <div class="dashboard-item" onclick="filterIssuesBySeverity('major')" style="cursor: pointer; border: 2px solid transparent;" onmouseover="this.style.borderColor='#ffa500';" onmouseout="this.style.borderColor='transparent';">
                     <div class="dashboard-item-label">主要问题</div>
                     <div class="dashboard-item-value" style="color: #ffa500;">{{ review_data.statistics.by_severity.major }}</div>
                 </div>
-                <div class="dashboard-item">
+                <div class="dashboard-item" onclick="filterIssuesBySeverity('minor')" style="cursor: pointer; border: 2px solid transparent;" onmouseover="this.style.borderColor='#ffd700';" onmouseout="this.style.borderColor='transparent';">
                     <div class="dashboard-item-label">次要问题</div>
                     <div class="dashboard-item-value" style="color: #ffd700;">{{ review_data.statistics.by_severity.minor }}</div>
                 </div>
-                <div class="dashboard-item">
+                <div class="dashboard-item" onclick="filterIssuesBySeverity('suggestion')" style="cursor: pointer; border: 2px solid transparent;" onmouseover="this.style.borderColor='#87ceeb';" onmouseout="this.style.borderColor='transparent';">
                     <div class="dashboard-item-label">建议</div>
                     <div class="dashboard-item-value" style="color: #87ceeb;">{{ review_data.statistics.by_severity.suggestion }}</div>
                 </div>
@@ -695,12 +1065,38 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                             {{ severity_labels[issue.severity] }}
                         </span>
                         <strong>{{ issue.category }}</strong>
-                        {% if issue.line %}<span style="color: #586069; font-size: 0.9em;">@ {{ issue.line }}</span>{% endif %}
                     </div>
-                    <div class="issue-description">{{ issue.description }}</div>
+                    {% if issue.file_path %}
+                    <div style="margin-top: 8px; padding: 8px; background: #f6f8fa; border-radius: 4px; font-size: 0.9em;">
+                        <div><strong>📋 文件:</strong> {{ issue.file_path }}</div>
+                        <div><strong>🔍 位置:</strong> 第 {{ issue.line }} 行{% if issue.method %} - 方法: <code>{{ issue.method }}</code>{% endif %}</div>
+                    </div>
+                    {% else %}
+                    <div style="margin-top: 8px; padding: 8px; background: #f6f8fa; border-radius: 4px; font-size: 0.9em;">
+                        <div><strong>🔍 位置:</strong> 第 {{ issue.line }} 行{% if issue.method %} - 方法: <code>{{ issue.method }}</code>{% endif %}</div>
+                    </div>
+                    {% endif %}
+                    <div class="issue-description" style="margin-top: 8px;">{{ issue.description }}</div>
                     {% if issue.suggestion %}
                     <div class="issue-suggestion">
                         💡 <strong>建议:</strong> {{ issue.suggestion }}
+                    </div>
+                    {% endif %}
+                    
+                    {% if issue.code_snippet %}
+                    <div class="code-snippet" style="margin-top: 8px;">
+                        <div class="code-snippet-header" onclick="toggleCodeSnippet(this)">
+                            <span>{{ issue.code_snippet.start_line }}-{{ issue.code_snippet.end_line }} 行 的代码段落</span>
+                            <span class="code-snippet-toggle">\u25bc</span>
+                        </div>
+                        <div class="code-snippet-content">
+                            {% for line in issue.code_snippet.lines %}
+                            <div class="code-line {% if line.type %}{{ line.type }}{% endif %}{% if line.in_range %} in-range{% endif %}">
+                                <div class="code-line-num">{{ line.line_num }}</div>
+                                <div class="code-line-content">{{ line.content }}</div>
+                            </div>
+                            {% endfor %}
+                        </div>
                     </div>
                     {% endif %}
                 </div>
@@ -716,12 +1112,38 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                             {{ severity_labels[issue.severity] }}
                         </span>
                         <strong>{{ issue.category }}</strong>
-                        {% if issue.line %}<span style="color: #586069; font-size: 0.9em;">@ {{ issue.line }}</span>{% endif %}
                     </div>
-                    <div class="issue-description">{{ issue.description }}</div>
+                    {% if issue.file_path %}
+                    <div style="margin-top: 8px; padding: 8px; background: #f6f8fa; border-radius: 4px; font-size: 0.9em;">
+                        <div><strong>📋 文件:</strong> {{ issue.file_path }}</div>
+                        <div><strong>🔍 位置:</strong> 第 {{ issue.line }} 行{% if issue.method %} - 方法: <code>{{ issue.method }}</code>{% endif %}</div>
+                    </div>
+                    {% else %}
+                    <div style="margin-top: 8px; padding: 8px; background: #f6f8fa; border-radius: 4px; font-size: 0.9em;">
+                        <div><strong>🔍 位置:</strong> 第 {{ issue.line }} 行{% if issue.method %} - 方法: <code>{{ issue.method }}</code>{% endif %}</div>
+                    </div>
+                    {% endif %}
+                    <div class="issue-description" style="margin-top: 8px;">{{ issue.description }}</div>
                     {% if issue.suggestion %}
                     <div class="issue-suggestion">
                         💡 <strong>建议:</strong> {{ issue.suggestion }}
+                    </div>
+                    {% endif %}
+                    
+                    {% if issue.code_snippet %}
+                    <div class="code-snippet" style="margin-top: 8px;">
+                        <div class="code-snippet-header" onclick="toggleCodeSnippet(this)">
+                            <span>{{ issue.code_snippet.start_line }}-{{ issue.code_snippet.end_line }} 行 的代码段落</span>
+                            <span class="code-snippet-toggle">\u25bc</span>
+                        </div>
+                        <div class="code-snippet-content">
+                            {% for line in issue.code_snippet.lines %}
+                            <div class="code-line {% if line.type %}{{ line.type }}{% endif %}{% if line.in_range %} in-range{% endif %}">
+                                <div class="code-line-num">{{ line.line_num }}</div>
+                                <div class="code-line-content">{{ line.content }}</div>
+                            </div>
+                            {% endfor %}
+                        </div>
                     </div>
                     {% endif %}
                 </div>
@@ -768,12 +1190,31 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                             {{ severity_labels[issue.severity] }}
                         </span>
                         <strong>{{ issue.category }}</strong>
-                        <span style="color: #586069; font-size: 0.9em;">@ {{ issue.line }}</span>
                     </div>
-                    <div class="issue-description">{{ issue.description }}</div>
+                    <div style="margin-top: 8px; padding: 8px; background: #f6f8fa; border-radius: 4px; font-size: 0.9em;">
+                        <div><strong>📋 位置:</strong> 第 {{ issue.line }} 行{% if issue.method %} - 方法: <code>{{ issue.method }}</code>{% endif %}</div>
+                    </div>
+                    <div class="issue-description" style="margin-top: 8px;">{{ issue.description }}</div>
                     {% if issue.suggestion %}
                     <div class="issue-suggestion">
                         💡 <strong>改进建议:</strong> {{ issue.suggestion }}
+                    </div>
+                    {% endif %}
+                    
+                    {% if issue.code_snippet %}
+                    <div class="code-snippet" style="margin-top: 8px;">
+                        <div class="code-snippet-header" onclick="toggleCodeSnippet(this)">
+                            <span>{{ issue.code_snippet.start_line }}-{{ issue.code_snippet.end_line }} 行 的代码段落</span>
+                            <span class="code-snippet-toggle">\u25bc</span>
+                        </div>
+                        <div class="code-snippet-content">
+                            {% for line in issue.code_snippet.lines %}
+                            <div class="code-line {% if line.type %}{{ line.type }}{% endif %}{% if line.in_range %} in-range{% endif %}">
+                                <div class="code-line-num">{{ line.line_num }}</div>
+                                <div class="code-line-content">{{ line.content }}</div>
+                            </div>
+                            {% endfor %}
+                        </div>
                     </div>
                     {% endif %}
                 </div>
@@ -882,7 +1323,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             });
         }
         
-        // 折叠所有文件
+        // 折厠所有文件
         function collapseAllFiles() {
             const section = document.querySelector('.file-section');
             if (section) section.classList.add('collapsed');
@@ -892,6 +1333,71 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                 el.classList.add('collapsed');
                 el.parentElement.querySelector('.collapse-icon').classList.add('collapsed');
             });
+        }
+                
+        // 二级功能：按严重程度筛选问题
+        let currentSeverityFilter = 'all';
+                
+        function filterIssuesBySeverity(severity) {
+            currentSeverityFilter = severity;
+                    
+            // 更新仪表盘样式
+            document.querySelectorAll('.dashboard-item').forEach((item, index) => {
+                const severities = ['all', 'critical', 'major', 'minor', 'suggestion'];
+                const itemSeverity = severities[index];
+                        
+                if (severity === itemSeverity) {
+                    item.style.boxShadow = '0 4px 12px rgba(3, 102, 214, 0.3)';
+                    item.style.borderColor = 'rgba(3, 102, 214, 0.5)';
+                } else {
+                    item.style.boxShadow = 'none';
+                    item.style.borderColor = 'transparent';
+                }
+            });
+                    
+            // 筛选问题
+            const allIssueItems = document.querySelectorAll('.issue-item');
+            allIssueItems.forEach(item => {
+                if (severity === 'all') {
+                    item.style.display = 'block';
+                } else {
+                    const badge = item.querySelector('.severity-badge');
+                    if (badge) {
+                        const classMatch = badge.className.match(/badge-(\w+)/);
+                        if (classMatch && classMatch[1] === severity) {
+                            item.style.display = 'block';
+                        } else {
+                            item.style.display = 'none';
+                        }
+                    }
+                }
+            });
+                    
+            // 也筛选严重问题卡片
+            const criticalCards = document.querySelectorAll('.critical-issue-card');
+            criticalCards.forEach(card => {
+                if (severity === 'all' || severity === 'critical') {
+                    card.style.display = 'block';
+                } else {
+                    card.style.display = 'none';
+                }
+            });
+        }
+        
+        // 代码段落切换函数
+        function toggleCodeSnippet(header) {
+            const content = header.nextElementSibling;
+            const toggle = header.querySelector('.code-snippet-toggle');
+            
+            if (content) {
+                if (content.classList.contains('collapsed')) {
+                    content.classList.remove('collapsed');
+                    if (toggle) toggle.classList.remove('collapsed');
+                } else {
+                    content.classList.add('collapsed');
+                    if (toggle) toggle.classList.add('collapsed');
+                }
+            }
         }
     </script>
 </body>

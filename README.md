@@ -11,8 +11,11 @@
 
 - ✅ **GitLab 集成** - 自动拉取代码差异，支持分支对比
 - ✅ **智能评审** - 集成大模型进行代码分析  
+- ✅ **代码段落展示** - 显示问题所在的具体代码片段及上下文
+- ✅ **问题定位增强** - 指示问题所在的文件、行号、方法等详细信息
+- ✅ **交互式筛选** - 添加仪表盘筛选功能，按严重程度实时筛选问题
 - ✅ **可配置规则** - 支持自定义评审规则
-- ✅ **多格式报告** - 支持 HTML、Markdown、JSON 格式
+- ✅ **多格式报告** - 支持 HTML、Excel、Markdown、JSON 格式
 - ✅ **按作者分组** - 自动统计每位开发者的代码问题
 - ✅ **并发加速** - 支持并发评审，提升速度3倍
 
@@ -72,14 +75,18 @@ python main.py -s feature/new-feature
 python main.py -s develop -t main
 
 # 指定报告格式
-python main.py -f html  # 或 markdown, json
+python main.py -f html  # html, excel, markdown, json
 ```
 
 > 💡 **智能检测**：如果不指定目标分支，系统会自动检测源分支的创建起点（分离点），从 main/master/develop 中自动选择。
 
 ### 4. 查看报告
 
-报告生成在 `./reports/` 目录，用浏览器打开 HTML 文件查看。
+报告生成在 `./reports/` 目录：
+
+- **HTML 报告**：用浏览器打开 HTML 文件查看，支持互动式筛选、代码段落展示
+- **Excel 报告**：用 Excel 打开 .xlsx 文件，包含多个工作表，便于数据流出和分析
+- **Markdown/JSON 报告**：用文本编辑器查看，易于版本控制
 
 ## 配置说明
 

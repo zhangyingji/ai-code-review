@@ -1,188 +1,167 @@
-# ========================================
+# 代码评审系统配置文件
+# 此文件是基础配置模板，包含所有可配置的项目
+# 敏感信息（如Token、API Key）建议保存在 config.local.yaml 中，不提交到版本控制
+
 # GitLab 配置
-# ========================================
 gitlab:
-  # GitLab 服务器地址，例如: https://gitlab.com 或自建服务器地址
-  url: "https://gitlab.example.com"
+  url: "https://gitlab.example.com"  # GitLab 服务器地址
+  private_token: "your_gitlab_token"  # GitLab 私有 Token，在 GitLab 设置 > 访问令牌中创建
   
-  # 个人访问令牌 (Personal Access Token)
-  # 在 GitLab 中生成: 用户设置 -> 访问令牌 -> 创建新令牌
-  # 需要权限: api, read_repository
-  private_token: "your_gitlab_token"
-  
-  # 项目 ID，可以在 GitLab 项目首页查看（项目名称下方）
+  # 单项目配置（选择 1）
   project_id: 123
+  
+  # 多项目配置（选择 2，注释掉 project_id，使用 -p 参数指定项目）
+  # projects:
+  #   - name: "project-a"
+  #     id: 123
+  #   - name: "project-b"
+  #     id: 456
 
-# ========================================
 # 分支配置
-# ========================================
 branch:
-  # 要评审的分支名称
-  # 可以通过命令行参数 -s/--source 覆盖
-  review_branch: "develop"
-  
-  # 对比基准分支
-  # 必须指定，不能为空
-  # 可以通过命令行参数 -t/--target 覆盖
-  base_branch: "main"
+  review_branch: "feature/new-feature"  # 要评审的分支
+  base_branch: "main"                   # 基准分支（必须指定）
 
-# ========================================
 # 大模型配置
-# ========================================
 llm:
-  # API 完整 URL，应包含 /chat/completions 路径
-  # 例如: http://ip:port/r/ai-deploy-dsfp-prd/qwen-max/v1/chat/completions
-  api_url: "http://your-api-server:port/path/to/model/v1/chat/completions"
+  # OpenAI 兼容的 API 服务器地址
+  api_url: "https://api.openai.com/v1/chat/completions"
+  # 或使用其他服务：
+  # api_url: "https://api.deepseek.com/v1/chat/completions"
+  # api_url: "http://your-api-server:port/path/to/model/v1/chat/completions"
   
-  # API 密钥
-  api_key: "your_api_key"
-  
-  # 模型名称
-  model: "qwen-max"
-  
-  # 温度参数 (0.0-2.0)
-  # 较低值: 更确定、一致的输出 (推荐 0.2-0.5)
-  # 较高值: 更随机、创意的输出
-  temperature: 0.3
-  
-  # 最大生成 token 数
-  # 根据需要调整，评审结果较长时可增加到 3000-4000
-  max_tokens: 2000
-  
-  # 是否启用深度思考模式
-  # true: 模型会进行深度执行评审，耗时会增加但精度更高
-  # false: 常规评审模式
-  enable_thinking: false
+  api_key: "your_api_key"  # API 密钥
+  model: "gpt-4"            # 模型名称
+  temperature: 0.3          # 温度参数，控制输出的随机性 (0-1)
+  max_tokens: 2000          # 最大 token 数
+  enable_thinking: false    # 是否启用深度思考模式（某些模型不支持）
 
-# ========================================
-# 性能配置
-# ========================================
-performance:
-  # 是否启用并发评审
-  # true: 多个文件同时评审，显著提升速度 (推荐)
-  # false: 串行评审，适用于 API 限流严格的场景
-  enable_concurrent: true
-  
-  # 最大并发 worker 数量
-  # 建议值: 3-5，过高可能触发 API 频率限制
-  # 根据大模型 API 的 RPM (Requests Per Minute) 限制调整
-  max_workers: 3
-  
-  # 批量处理大小 (预留字段，当前未使用)
-  batch_size: 10
-
-# ========================================
-# 日志配置
-# ========================================
-logging:
-  # 是否启用文件日志
-  # true: 日志保存到文件，方便排查问题 (推荐)
-  # false: 仅输出到控制台
-  enabled: true
-  
-  # 日志文件保存目录
-  log_dir: "./logs"
-  
-  # 日志级别
-  # - DEBUG: 详细调试信息，包括 API 请求、响应等
-  # - INFO: 常规信息，记录主要流程 (推荐)
-  # - WARNING: 警告信息，不影响运行的问题
-  # - ERROR: 错误信息，仅记录异常情况
-  level: "INFO"
-  
-  # 单个日志文件最大大小 (MB)
-  # 超过后自动轮转到新文件
-  max_file_size: 10
-  
-  # 保留的日志文件数量
-  # 超过后删除最旧的文件
-  backup_count: 5
-  
-  # 是否同时输出到控制台
-  # true: 日志同时显示在终端和保存到文件 (推荐)
-  # false: 仅保存到文件
-  console_output: true
-
-# ========================================
-# 评审规则配置
-# ========================================
-# 每个规则类别可以单独启用/禁用
-# 可以根据项目需要添加自定义规则类别
+# 评审规则配置 - 可根据项目需求调整
 review_rules:
-  # ---------- 代码规范检查 ----------
-  code_style:
-    # 是否启用此类别的检查
+  代码风格:
     enabled: true
-    
-    # 具体检查规则列表，大模型会根据这些规则进行评审
     rules:
       - "检查代码格式是否符合团队规范"
       - "检查命名是否清晰且符合约定"
       - "检查是否有过长的函数或类"
   
-  # ---------- 安全检查 ----------
-  security:
+  安全性:
     enabled: true
     rules:
-      - "检查是否有 SQL 注入风险"
-      - "检查是否有 XSS 漏洞风险"
-      - "检查敏感信息是否硬编码 (API Key, 密码等)"
-      - "检查是否有不安全的依赖库"
+      - "检查是否有SQL注入风险"
+      - "检查是否有XSS漏洞风险"
+      - "检查敏感信息是否硬编码"
+      - "检查是否有不安全的依赖"
   
-  # ---------- 性能检查 ----------
-  performance:
+  性能:
     enabled: true
     rules:
       - "检查是否有不必要的循环嵌套"
       - "检查是否有内存泄漏风险"
       - "检查数据库查询是否优化"
+      - "检查是否存在代码死循环"
+      - "检查是否有无限递归风险"
+      - "检查是否有资源未正确释放"
   
-  # ---------- 最佳实践 ----------
-  best_practices:
+  最佳实践:
     enabled: true
     rules:
       - "检查错误处理是否完善"
       - "检查是否有适当的日志记录"
-      - "检查是否遵循 SOLID 原则"
+      - "检查是否遵循SOLID原则"
       - "检查代码复用性"
   
-  # ---------- 自定义规则示例 ----------
-  # 可以添加项目特定的规则类别，例如:
-  # company_standards:
-  #   enabled: false
-  #   rules:
-  #     - "检查是否使用公司统一框架"
-  #     - "检查是否符合团队编码规范"
+  可维护性:
+    enabled: true
+    rules:
+      - "检查代码是否易于理解和修改"
+      - "检查是否有过多的嵌套层级"
+      - "检查变量名和函数名是否具有表达力"
+      - "检查是否存在重复代码"
+      - "检查是否有不必要的复杂性"
+  
+  并发与线程安全:
+    enabled: true
+    rules:
+      - "检查是否正确处理多线程/并发访问"
+      - "检查共享资源是否有正确的同步机制"
+      - "检查是否存在竞态条件风险"
+      - "检查是否有死锁的可能性"
+      - "检查是否正确使用了线程安全的集合"
+      - "检查是否有不安全的发布问题"
+  
+  文档注释:
+    enabled: true
+    rules:
+      - "检查公共接口是否有文档说明"
+      - "检查复杂逻辑是否有注释解释"
+      - "检查函数/方法是否有参数和返回值说明"
+      - "检查是否有更新的文档以反映代码变更"
 
-# ========================================
 # 报告配置
-# ========================================
 report:
-  # 报告输出目录
-  # 可以通过命令行参数 -o/--output 覆盖
-  output_dir: "./reports"
+  output_dir: "./reports"  # 报告输出目录
+  format: "html"           # 可选: html, excel, markdown, json
+  group_by_author: true    # 是否按作者分组
+  include_code_snippet: true  # 是否包含代码段落
+
+# 文件筛选配置 - 可以自定义忽略的文件类型和目录
+file_filter:
+  # 忽略的文件扩展名列表
+  ignore_extensions:
+    - ".md"
+    - ".txt"
+    - ".json"
+    - ".yaml"
+    - ".yml"
+    - ".lock"
+    - ".gitignore"
+    - ".dockerignore"
+    - ".png"
+    - ".jpg"
+    - ".jpeg"
+    - ".gif"
+    - ".svg"
+    - ".ico"
+    - ".pdf"
+    - ".zip"
+    - ".tar"
+    - ".gz"
+    - ".woff"
+    - ".woff2"
+    - ".ttf"
+    - ".eot"
   
-  # 报告格式
-  # - html: 网页格式，包含可视化图表 (推荐)
-  # - markdown: Markdown 格式，适合版本控制
-  # - json: JSON 格式，适合程序解析和 CI/CD 集成
-  # 可以通过命令行参数 -f/--format 覆盖
-  format: "html"
-  
-  # 是否按作者分组显示
-  # true: 报告中会按提交者统计问题
-  # false: 仅按文件显示
-  group_by_author: true
-  
-  # 是否在报告中包含代码片段
-  # true: 显示问题相关的代码上下文
-  # false: 仅显示问题描述
-  include_code_snippet: true
-  
-  # 问题严重程度级别定义
-  # 大模型会根据这些级别对问题进行分类
-  severity_levels:
-    - "critical"    # 严重问题: 必须修复，影响功能或安全
-    - "major"       # 主要问题: 应当修复，影响代码质量
-    - "minor"       # 次要问题: 建议修复，不影响主要功能
-    - "suggestion"  # 优化建议: 可选修复，提升代码质量
+  # 忽略的目录列表
+  ignore_dirs:
+    - "node_modules"
+    - "vendor"
+    - "dist"
+    - "build"
+    - "__pycache__"
+    - ".git"
+    - ".idea"
+    - ".vscode"
+
+# 性能配置
+performance:
+  enable_concurrent: true  # 是否启用并发评审
+  max_workers: 3           # 并发工作线程数
+
+# 提交人配置
+committer_filter:
+  # 批量控制提交人: 当为空时默认评审所有提交人
+  # 当列表非空时，仅评审列表中的提交人的提交
+  authors:
+    # - "zhangsan@example.com"
+    # - "lisi@example.com"
+    # - "wangwu@example.com"
+
+# 日志配置
+logging:
+  enabled: true            # 启用文件日志
+  log_dir: "./logs"        # 日志目录
+  level: "INFO"            # 日志级别: DEBUG, INFO, WARNING, ERROR
+  max_file_size: 10        # 单个日志文件最大大小(MB)
+  backup_count: 5          # 保留的日志文件数量
+  console_output: true     # 同时输出到控制台

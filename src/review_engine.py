@@ -18,7 +18,8 @@ class ReviewEngine:
     
     def __init__(self, gitlab_client: GitLabClient, llm_client: LLMClient, 
                  review_rules: Dict, enable_concurrent: bool = True, max_workers: int = 3,
-                 enable_thinking: bool = False):
+                 enable_thinking: bool = False, ignore_extensions: Optional[List[str]] = None,
+                 ignore_dirs: Optional[List[str]] = None, filter_authors: Optional[List[str]] = None):
         """
         初始化评审引擎
         
@@ -29,6 +30,9 @@ class ReviewEngine:
             enable_concurrent: 是否启用并发评审
             max_workers: 最大并发worker数
             enable_thinking: 是否启用深度思考模式
+            ignore_extensions: 忽略的文件扩展名列表
+            ignore_dirs: 忽略的目录列表
+            filter_authors: 提交人邮箱列表，为Empty时表示无限制
         """
         self.gitlab_client = gitlab_client
         self.llm_client = llm_client
@@ -37,6 +41,39 @@ class ReviewEngine:
         self.max_workers = max_workers
         self.enable_thinking = enable_thinking
         
+        # 设置忽略列表，支持用户自定义
+        self.ignore_extensions = ignore_extensions or [
+            '.md', '.txt', '.json', '.yaml', '.yml', 
+            '.lock', '.gitignore', '.dockerignore',
+            '.png', '.jpg', '.jpeg', '.gif', '.svg',
+            '.ico', '.pdf', '.zip', '.tar', '.gz',
+            '.woff', '.woff2', '.ttf', '.eot'
+        ]
+        self.ignore_dirs = ignore_dirs or [
+            'node_modules', 'vendor', 'dist', 'build',
+            '__pycache__', '.git', '.idea', '.vscode'
+        ]
+        
+        # 设置提交人过滤配置
+        self.filter_authors = filter_authors or []
+        
+    def _should_review_author(self, author_email: str) -> bool:
+        """
+        判断是否需要评审该提交人的提交
+        
+        Args:
+            author_email: 提交人邮箱
+            
+        Returns:
+            是否需要评审
+        """
+        # 当 filter_authors 为空时，评审所有提交人
+        if not self.filter_authors:
+            return True
+        
+        # 当列表非空时，仅评审指定的提交人
+        return author_email in self.filter_authors
+    
     def collect_review_rules(self) -> List[str]:
         """
         收集启用的评审规则
@@ -54,33 +91,22 @@ class ReviewEngine:
         """
         判断文件是否需要评审
         
+        支持的文件类型: Python, JavaScript, TypeScript, Vue, Java, C++, C#, Go, 等技术文件
+        忽略的文件类型和目录可事先配置
+        
         Args:
             file_path: 文件路径
             
         Returns:
             是否需要评审
         """
-        # 忽略的文件类型
-        ignore_extensions = [
-            '.md', '.txt', '.json', '.yaml', '.yml', 
-            '.lock', '.gitignore', '.dockerignore',
-            '.png', '.jpg', '.jpeg', '.gif', '.svg',
-            '.ico', '.pdf', '.zip', '.tar', '.gz'
-        ]
-        
-        # 忽略的目录
-        ignore_dirs = [
-            'node_modules', 'vendor', 'dist', 'build',
-            '__pycache__', '.git', '.idea', '.vscode'
-        ]
-        
         # 检查文件扩展名
-        for ext in ignore_extensions:
+        for ext in self.ignore_extensions:
             if file_path.endswith(ext):
                 return False
         
         # 检查目录
-        for dir_name in ignore_dirs:
+        for dir_name in self.ignore_dirs:
             if f'/{dir_name}/' in file_path or file_path.startswith(f'{dir_name}/'):
                 return False
         
@@ -109,8 +135,10 @@ class ReviewEngine:
             logger.info(f"跳过已删除文件: {file_path}")
             return None
         
-        # 跳过没有差异的文件
-        if not diff_info.get('diff'):
+        # 对于新增文件，即使没有diff也需要评审（使用整个文件内容）
+        if diff_info.get('new_file'):
+            logger.info(f"评审新增文件: {file_path}")
+        elif not diff_info.get('diff'):
             logger.info(f"跳过无差异文件: {file_path}")
             return None
         
@@ -130,6 +158,16 @@ class ReviewEngine:
         review_result['deletions'] = diff_info.get('deletions', 0)
         review_result['new_file'] = diff_info.get('new_file', False)
         review_result['renamed_file'] = diff_info.get('renamed_file', False)
+        
+        # 为每个问题添加代码段落
+        if review_result.get('issues'):
+            for issue in review_result['issues']:
+                code_snippet = self._extract_code_snippet(
+                    diff_info.get('diff', ''),
+                    issue.get('line', '')
+                )
+                if code_snippet:
+                    issue['code_snippet'] = code_snippet
         
         return review_result
     
@@ -159,11 +197,19 @@ class ReviewEngine:
         commits = self.gitlab_client.get_commits_between_branches(review_branch, base_branch)
         logger.info(f"共有 {len(commits)} 个提交")
         
+        # 根据配置对提交记录进行过滤
+        if self.filter_authors:
+            original_count = len(commits)
+            commits = [c for c in commits if self._should_review_author(c.get('author_email', ''))]
+            logger.info(f"提交人过滤: {original_count} -> {len(commits)} 个提交")
+        
         # 收集评审规则
         rules = self.collect_review_rules()
         logger.info(f"启用 {len(rules)} 条评审规则")
         
-        # 评审每个文件 - 支持并发
+        # 根据配置对差異阶评审（简化处理）
+        # 实际应用中可以根据提交人进一步筛选diff
+        filtered_diffs = diffs
         if self.enable_concurrent and len(diffs) > 1:
             logger.info(f"启用并发评审模式,max_workers={self.max_workers}")
             file_reviews = self._review_concurrent(diffs, rules)
@@ -183,8 +229,11 @@ class ReviewEngine:
         
         review_report = {
             'metadata': {
-                'source_branch': review_branch,
-                'target_branch': base_branch,
+                'review_branch': review_branch,  # 要评审的分支
+                'base_branch': base_branch,      # 基准分支（比较徒）
+                # 允许旧类型为backward compatibility
+                'source_branch': review_branch,  # 废弃：使用 review_branch
+                'target_branch': base_branch,    # 废弃：使用 base_branch
                 'review_time': start_time.isoformat(),
                 'duration_seconds': duration,
                 'total_commits': len(commits),
@@ -326,3 +375,98 @@ class ReviewEngine:
                 severity_count[severity] += 1
         
         return severity_count
+    
+    def _extract_code_snippet(self, diff: str, line_info: str) -> Optional[Dict]:
+        """
+        从 diff 中提取指定行号的代码段落
+        
+        Args:
+            diff: 代码差异文本
+            line_info: 行号信息，格式为 "42" 或 "42-58"
+            
+        Returns:
+            包含代码段落的字典，包括起始行、结束行和代码列表
+        """
+        if not diff or not line_info:
+            return None
+        
+        try:
+            # 解析行号信息
+            if '-' in str(line_info):
+                parts = str(line_info).split('-')
+                start_line = int(parts[0])
+                end_line = int(parts[1])
+            else:
+                start_line = int(line_info)
+                end_line = start_line + 5  # 默认显示6行（当前行前2行，后3行）
+            
+            # 从 diff 中提取代码
+            # diff 格式示例：
+            # @@ -42,7 +42,10 @@ def method_name():
+            #  context_line
+            # -old_line
+            # +new_line
+            
+            lines = diff.split('\n')
+            code_lines = []
+            current_line_num = 0
+            in_range = False
+            
+            for line in lines:
+                # 跳过 diff 头部和其他元数据
+                if line.startswith('@@'):
+                    # 从 @@ 行中提取起始行号
+                    import re
+                    match = re.search(r'\+([0-9]+)', line)
+                    if match:
+                        current_line_num = int(match.group(1))
+                        in_range = False
+                    continue
+                
+                if line.startswith('---') or line.startswith('+++'):
+                    continue
+                
+                # 处理代码行
+                if in_range or (start_line <= current_line_num <= end_line + 5):
+                    in_range = True
+                    
+                    if line.startswith('-'):
+                        # 删除的行，不计数
+                        code_lines.append({
+                            'line_num': current_line_num,
+                            'type': 'deleted',
+                            'content': line[1:],
+                            'in_range': start_line <= current_line_num <= end_line
+                        })
+                    elif line.startswith('+'):
+                        code_lines.append({
+                            'line_num': current_line_num,
+                            'type': 'added',
+                            'content': line[1:],
+                            'in_range': start_line <= current_line_num <= end_line
+                        })
+                        current_line_num += 1
+                    else:
+                        # 上下文行
+                        code_lines.append({
+                            'line_num': current_line_num,
+                            'type': 'context',
+                            'content': line[1:] if line.startswith(' ') else line,
+                            'in_range': start_line <= current_line_num <= end_line
+                        })
+                        current_line_num += 1
+                    
+                    if current_line_num > end_line + 5:
+                        break
+            
+            if code_lines:
+                return {
+                    'start_line': start_line,
+                    'end_line': end_line,
+                    'lines': code_lines
+                }
+        
+        except Exception as e:
+            logger.debug(f"提取代码段落失败: {e}")
+        
+        return None

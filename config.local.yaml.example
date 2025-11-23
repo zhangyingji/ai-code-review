@@ -3,9 +3,22 @@
 
 # GitLab 配置
 gitlab:
+  # 支持配置第一个项目，或者用项目列表配置多个项目
   url: "https://gitlab.example.com"
   private_token: "glpat-xxxxxxxxxxxxxxxxxxxx"  # 在 GitLab 设置中创建
+  
+  # 选项 1: 第一个项目
   project_id: 123  # 项目 ID,在项目设置中查看
+  
+  # 选项 2: 配置多个项目，会根据指定的 project_name 选择
+  # 将此方案的 project_id 注释掉，削除下面的 # 即可使用
+  # projects:
+  #   - name: "project-a"     # 项目名称，用于作为 --project 参数
+  #     id: 123
+  #   - name: "project-b"
+  #     id: 456
+  #   - name: "project-c"
+  #     id: 789
 
 # 分支配置
 branch:
@@ -14,16 +27,14 @@ branch:
 
 # 大模型配置
 llm:
-  # API 完整 URL，包含 /chat/completions 路径
-  # 例如: http://21.98.234.227:30681/r/ai-deploy-dsfp-prd/qwen-max/v1/chat/completions
-  api_url: "http://your-api-server:port/path/to/model/v1/chat/completions"
+  # API 完整 URL
+  api_url: "http://your-api-server:port/r/ai-deploy-dsfp-prd/qwen3-30b-a3b-kf/v1/chat/completions"
   
-  # API 密钥
+  # API 密钥（非必填）
   api_key: "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
   
   # 模型名称，必须与 API 服务器的模型一致
-  # 例如: qwen-max、gpt-4、deepseek-chat
-  model: "qwen-max"
+  model: "qwen3-30b-a3b"
   temperature: 0.3
   max_tokens: 2000
   
@@ -33,14 +44,14 @@ llm:
 
 # 评审规则配置 - 可根据项目需求调整
 review_rules:
-  code_style:
+  代码风格:
     enabled: true
     rules:
       - "检查代码格式是否符合团队规范"
       - "检查命名是否清晰且符合约定"
       - "检查是否有过长的函数或类"
   
-  security:
+  安全性:
     enabled: true
     rules:
       - "检查是否有SQL注入风险"
@@ -48,24 +59,100 @@ review_rules:
       - "检查敏感信息是否硬编码"
       - "检查是否有不安全的依赖"
   
-  performance:
+  性能:
     enabled: true
     rules:
       - "检查是否有不必要的循环嵌套"
       - "检查是否有内存泄漏风险"
       - "检查数据库查询是否优化"
+      - "检查是否存在代码死循环"
+      - "检查是否有无限递归风险"
+      - "检查是否有资源未正确释放"
   
-  best_practices:
+  最佳实践:
     enabled: true
     rules:
       - "检查错误处理是否完善"
       - "检查是否有适当的日志记录"
       - "检查是否遵循SOLID原则"
       - "检查代码复用性"
+  
+  可维护性:
+    enabled: true
+    rules:
+      - "检查代码是否易于理解和修改"
+      - "检查是否有过多的嵌套层级"
+      - "检查变量名和函数名是否具有表达力"
+      - "检查是否存在重复代码"
+      - "检查是否有不必要的复杂性"
+  
+  并发与线程安全:
+    enabled: true
+    rules:
+      - "检查是否正确处理多线程/并发访问"
+      - "检查共享资源是否有正确的同步机制"
+      - "检查是否存在竞态条件风险"
+      - "检查是否有死锁的可能性"
+      - "检查是否正确使用了线程安全的集合"
+      - "检查是否有不安全的发布问题"
+  
+  文档注释:
+    enabled: true
+    rules:
+      - "检查公共接口是否有文档说明"
+      - "检查复杂逻辑是否有注释解释"
+      - "检查函数/方法是否有参数和返回值说明"
+      - "检查是否有更新的文档以反映代码变更"
 
 # 报告配置
 report:
   output_dir: "./reports"
-  format: "html"  # 可选: html, markdown, json
+  format: "html"  # 可选: html, excel, markdown, json
   group_by_author: true
   include_code_snippet: true
+
+# 文件筛选配置 - 可以自定义忽略的文件类型和目录
+file_filter:
+  # 忽略的文件扩展名列表
+  ignore_extensions:
+    - ".md"
+    - ".txt"
+    - ".json"
+    - ".yaml"
+    - ".yml"
+    - ".lock"
+    - ".gitignore"
+    - ".dockerignore"
+    - ".png"
+    - ".jpg"
+    - ".jpeg"
+    - ".gif"
+    - ".svg"
+    - ".ico"
+    - ".pdf"
+    - ".zip"
+    - ".tar"
+    - ".gz"
+    - ".woff"
+    - ".woff2"
+    - ".ttf"
+    - ".eot"
+  
+  # 忽略的目录列表
+  ignore_dirs:
+    - "node_modules"
+    - "vendor"
+    - "dist"
+    - "build"
+    - "__pycache__"
+    - ".git"
+    - ".idea"
+    - ".vscode"
+
+# 提交人配置
+committer_filter:
+  # 当列表非空時，仅评审列表中的提交人的提交
+  authors:
+    # - "zhangsan"
+    # - "lisi"
+    # - "wangwu"
