@@ -39,7 +39,6 @@ logs/
 *.log
 
 # Config with sensitive data
-config.yaml
 config.local.yaml
 
 # Git repos

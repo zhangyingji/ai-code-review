@@ -1,0 +1,167 @@
+# 代码评审系统配置文件
+# 此文件是基础配置模板，包含所有可配置的项目
+# 敏感信息（如Token、API Key）建议保存在 config.local.yaml 中，不提交到版本控制
+
+# GitLab 配置
+gitlab:
+  url: "https://gitlab.example.com"  # GitLab 服务器地址
+  private_token: "your_gitlab_token"  # GitLab 私有 Token，在 GitLab 设置 > 访问令牌中创建
+  
+  # 单项目配置（选择 1）
+  project_id: 123
+  
+  # 多项目配置（选择 2，注释掉 project_id，使用 -p 参数指定项目）
+  # projects:
+  #   - name: "project-a"
+  #     id: 123
+  #   - name: "project-b"
+  #     id: 456
+
+# 分支配置
+branch:
+  review_branch: "feature/new-feature"  # 要评审的分支
+  base_branch: "main"                   # 基准分支（必须指定）
+
+# 大模型配置
+llm:
+  # OpenAI 兼容的 API 服务器地址
+  api_url: "https://api.openai.com/v1/chat/completions"
+  # 或使用其他服务：
+  # api_url: "https://api.deepseek.com/v1/chat/completions"
+  # api_url: "http://your-api-server:port/path/to/model/v1/chat/completions"
+  
+  api_key: "your_api_key"  # API 密钥
+  model: "gpt-4"            # 模型名称
+  temperature: 0.3          # 温度参数，控制输出的随机性 (0-1)
+  max_tokens: 2000          # 最大 token 数
+  enable_thinking: false    # 是否启用深度思考模式（某些模型不支持）
+
+# 评审规则配置 - 可根据项目需求调整
+review_rules:
+  代码风格:
+    enabled: true
+    rules:
+      - "检查代码格式是否符合团队规范"
+      - "检查命名是否清晰且符合约定"
+      - "检查是否有过长的函数或类"
+  
+  安全性:
+    enabled: true
+    rules:
+      - "检查是否有SQL注入风险"
+      - "检查是否有XSS漏洞风险"
+      - "检查敏感信息是否硬编码"
+      - "检查是否有不安全的依赖"
+  
+  性能:
+    enabled: true
+    rules:
+      - "检查是否有不必要的循环嵌套"
+      - "检查是否有内存泄漏风险"
+      - "检查数据库查询是否优化"
+      - "检查是否存在代码死循环"
+      - "检查是否有无限递归风险"
+      - "检查是否有资源未正确释放"
+  
+  最佳实践:
+    enabled: true
+    rules:
+      - "检查错误处理是否完善"
+      - "检查是否有适当的日志记录"
+      - "检查是否遵循SOLID原则"
+      - "检查代码复用性"
+  
+  可维护性:
+    enabled: true
+    rules:
+      - "检查代码是否易于理解和修改"
+      - "检查是否有过多的嵌套层级"
+      - "检查变量名和函数名是否具有表达力"
+      - "检查是否存在重复代码"
+      - "检查是否有不必要的复杂性"
+  
+  并发与线程安全:
+    enabled: true
+    rules:
+      - "检查是否正确处理多线程/并发访问"
+      - "检查共享资源是否有正确的同步机制"
+      - "检查是否存在竞态条件风险"
+      - "检查是否有死锁的可能性"
+      - "检查是否正确使用了线程安全的集合"
+      - "检查是否有不安全的发布问题"
+  
+  文档注释:
+    enabled: true
+    rules:
+      - "检查公共接口是否有文档说明"
+      - "检查复杂逻辑是否有注释解释"
+      - "检查函数/方法是否有参数和返回值说明"
+      - "检查是否有更新的文档以反映代码变更"
+
+# 报告配置
+report:
+  output_dir: "./reports"  # 报告输出目录
+  format: "html"           # 可选: html, excel, markdown, json
+  group_by_author: true    # 是否按作者分组
+  include_code_snippet: true  # 是否包含代码段落
+
+# 文件筛选配置 - 可以自定义忽略的文件类型和目录
+file_filter:
+  # 忽略的文件扩展名列表
+  ignore_extensions:
+    - ".md"
+    - ".txt"
+    - ".json"
+    - ".yaml"
+    - ".yml"
+    - ".lock"
+    - ".gitignore"
+    - ".dockerignore"
+    - ".png"
+    - ".jpg"
+    - ".jpeg"
+    - ".gif"
+    - ".svg"
+    - ".ico"
+    - ".pdf"
+    - ".zip"
+    - ".tar"
+    - ".gz"
+    - ".woff"
+    - ".woff2"
+    - ".ttf"
+    - ".eot"
+  
+  # 忽略的目录列表
+  ignore_dirs:
+    - "node_modules"
+    - "vendor"
+    - "dist"
+    - "build"
+    - "__pycache__"
+    - ".git"
+    - ".idea"
+    - ".vscode"
+
+# 性能配置
+performance:
+  enable_concurrent: true  # 是否启用并发评审
+  max_workers: 3           # 并发工作线程数
+
+# 提交人配置
+committer_filter:
+  # 批量控制提交人: 当为空时默认评审所有提交人
+  # 当列表非空时，仅评审列表中的提交人的提交
+  authors:
+    # - "zhangsan@example.com"
+    # - "lisi@example.com"
+    # - "wangwu@example.com"
+
+# 日志配置
+logging:
+  enabled: true            # 启用文件日志
+  log_dir: "./logs"        # 日志目录
+  level: "INFO"            # 日志级别: DEBUG, INFO, WARNING, ERROR
+  max_file_size: 10        # 单个日志文件最大大小(MB)
+  backup_count: 5          # 保留的日志文件数量
+  console_output: true     # 同时输出到控制台
