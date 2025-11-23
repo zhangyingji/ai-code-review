@@ -7,6 +7,7 @@ import json
 from typing import Dict, List
 from datetime import datetime
 from jinja2 import Template
+from src.simple_html_template import SIMPLE_HTML_TEMPLATE
 import logging
 
 try:
@@ -105,7 +106,7 @@ class ReportGenerator:
         return filepath
     
     def _generate_html_report(self, review_data: Dict, group_by_author: bool) -> str:
-        """生成HTML格式报告"""
+        """生成HTML格式报告 - 使用简化模板"""
         # 对所有问题进行排序（输出前）
         if group_by_author and review_data.get('author_stats'):
             for author in review_data['author_stats']:
@@ -116,11 +117,10 @@ class ReportGenerator:
             if file_review.get('issues'):
                 file_review['issues'] = self._sort_issues_by_severity(file_review['issues'])
         
-        template = Template(HTML_TEMPLATE)
+        # 使用简化模板
+        template = Template(SIMPLE_HTML_TEMPLATE)
         return template.render(
             review_data=review_data,
-            group_by_author=group_by_author,
-            severity_colors=SEVERITY_COLORS,
             severity_labels=SEVERITY_LABELS
         )
     
