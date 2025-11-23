@@ -1,92 +1,75 @@
 # 更新日志
 
-## [v2.2.0] - 2025-11-21
+## [v2.3.0] - 2025-11-23
 
-### 新增
+### 🎯 重构
 
-- **多项目配置支持**：支持在单一配置文件中管理多个项目
-  - 新增 `gitlab.projects` 配置项，允许配置项目列表
-  - 使用 `-p/--project` 参数选择特定项目
-  - 完全兼容现有的单项目配置方式
+- **报告生成系统模块化重构**：将单一的 report_generator.py 拆分为多个专用模块
+  - 创建 `formatters/` 模块：独立处理不同报告格式
+    - `BaseFormatter` 抽象基类，定义统一接口
+    - `HtmlFormatter`：HTML报告生成
+    - `MarkdownFormatter`：Markdown报告生成
+    - `JsonFormatter`：JSON报告生成
+    - `ExcelFormatter`：Excel报告生成
+  - 创建 `templates/` 模块：集中管理HTML模板和样式
+    - `html_template.py`：HTML结构模板
+    - `styles.py`：CSS样式定义
+    - JavaScript 脚本独立管理
+  - 创建 `utils/` 模块：通用工具函数
+    - `DataProcessor`：数据排序、分组、筛选功能
+    - `helpers.py`：文件名清理、时间格式化等辅助函数
 
-- **提交人过滤配置**：控制评审范围，按提交人筛选
-  - 新增 `committer_filter.authors` 配置项
-  - 当列表为空时评审所有提交人
-  - 当列表非空时仅评审指定提交人的提交
-  - 支持邮箱地址作为提交人标识
+### 🏗️ 架构扩展
 
-- **增强的评审规则**：
-  - 支持评审规则分类名使用中文（如「代码风格」代替 `code_style`）
-  - 新增「并发与线程安全」评审维度（6 条规则）
-  - 性能模块新增 3 条规则：检查死循环、无限递归、资源泄漏
-  - 新增「可维护性」评审维度（5 条规则）
-  - 新增「文档注释」评审维度（4 条规则）
-  - 现在共包含 7 个评审维度，29 条评审规则
+- **存储模块** (`storage/`)：为评审结果数据库落库预留接口
+  - `BaseStorage` 抽象基类
+  - `DatabaseStorage` 示例实现框架
+  - 支持保存、查询、删除、统计功能
 
-- **报告优化**：
-  - 去除 Markdown 报告中的「提交记录」展示
-  - 保留关键的提交统计信息
+- **集成模块** (`integrations/`)：为外部系统对接预留接口
+  - `BaseIntegration` 抽象基类
+  - `GerritIntegration`：Gerrit代码审查系统集成框架
+  - `GitLabIntegration`：GitLab增强集成框架
+  - 支持获取MR、发布评论、设置审查状态
 
-### 优化
+- **调度模块** (`schedulers/`)：为定时评审任务预留接口
+  - `BaseScheduler` 抽象基类
+  - `CronScheduler`：Cron表达式调度框架
+  - 支持APScheduler等成熟库的集成
 
-- **配置系统改进**：
-  - 支持多项目切换，无需修改配置文件
-  - 提交人过滤精确到邮箱级别
-  - 评审规则配置更直观（支持中文分类名）
+### ✨ 核心改进
 
-- **代码评审精细化**：
-  - 增强对并发问题的检测（竞态条件、死锁、线程安全）
-  - 增强对性能问题的检测（死循环、无限递归、资源泄漏）
-  - 关注代码可维护性（命名、嵌套层级、代码复用）
-  - 强调文档和注释的重要性
+- **新报告生成器** (`report_generator_new.py`)：
+  - 简化主接口到 120 行代码
+  - 清晰的职责分离：选择格式化器 → 生成报告 → 保存文件
+  - 支持一键生成多种格式报告
+  - 灵活的格式化器扩展机制
 
-### 修复
+- **数据处理工具** (`DataProcessor`)：
+  - 提取问题排序、分组、筛选逻辑
+  - 统一的数据处理接口
+  - 被多个格式化器共享，提高代码复用
 
-- **文档显示优化**：移除 Markdown 报告中重复的提交信息展示
+### 🔧 项目管理
 
-### 新增命令行参数
+- **更新 .gitignore**：
+  - 添加演示脚本过滤：`demo_report.py`、`generate_demo_new.py`、`test_refactored.py`
+  - 添加模板文件过滤：`simple_html_template.py`
+  - 确保 `config.local.yaml` 不被跟踪
 
-- `-p/--project`：在配置了多个项目时选择特定项目
-  - 示例：`python main.py -p project-a`
+### 🎓 收益总结
 
-### 配置示例
+**可维护性**：每个模块职责单一，通常 100-250 行代码，易于理解和修改
 
-**多项目配置：**
-```yaml
-gitlab:
-  url: "https://gitlab.example.com"
-  private_token: "token"
-  projects:
-    - name: "project-a"
-      id: 123
-    - name: "project-b"
-      id: 456
-```
+**可扩展性**：
+- 新增报告格式：继承 `BaseFormatter` 即可
+- 新增存储方式：实现 `BaseStorage` 接口
+- 新增集成系统：实现 `BaseIntegration` 接口
+- 新增调度方式：实现 `BaseScheduler` 接口
 
-**提交人过滤配置：**
-```yaml
-committer_filter:
-  authors:
-    - "zhangsan@example.com"
-    - "lisi@example.com"
-```
+**可测试性**：每个模块可独立测试，依赖注入便于 mock
 
-**中文评审规则配置：**
-```yaml
-review_rules:
-  代码风格:
-    enabled: true
-    rules:
-      - "检查代码格式是否符合团队规范"
-  安全性:
-    enabled: true
-    rules:
-      - "检查是否有SQL注入风险"
-  并发与线程安全:
-    enabled: true
-    rules:
-      - "检查是否有死锁的可能性"
-```
+**代码复用**：工具函数、数据处理逻辑被多个模块共享
 
 ---
 
