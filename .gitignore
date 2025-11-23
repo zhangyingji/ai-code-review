@@ -54,5 +54,11 @@ demo_reports/
 *.json
 demo_*.md
 
+# Test scripts (演示和验证用的临时脚本)
+demo_report.py
+generate_demo_new.py
+test_refactored.py
+simple_html_template.py
+
 # IDE
 .qoder/
