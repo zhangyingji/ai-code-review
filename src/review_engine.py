@@ -300,6 +300,9 @@ class ReviewEngine:
         """
         # 提取所有作者
         authors = {}
+        # 建立文件到提交者的映射
+        file_to_commits = {}  # file_path -> [commits]
+        
         for commit in commits:
             author_email = commit['author_email']
             author_name = commit['author_name']
@@ -314,19 +317,31 @@ class ReviewEngine:
                 }
             
             authors[author_email]['commits'].append(commit)
+            
+            # 建立文件到提交者的映射
+            for modified_file in commit.get('modified_files', []):
+                if modified_file not in file_to_commits:
+                    file_to_commits[modified_file] = []
+                file_to_commits[modified_file].append(author_email)
         
         # 关联文件评审结果到作者
-        # 注意: 这里简化处理,实际应该通过git blame获取每行代码的作者
-        # 这里假设最近的提交者是主要负责人
+        # 只将问题分配给实际修改了该文件的作者
         for review in file_reviews:
-            # 找到最后修改此文件的作者
             file_path = review['file_path']
             
-            # 简化处理:将问题分配给所有参与的作者
-            for author_email in authors:
-                authors[author_email]['files_changed'].add(file_path)
-                if review.get('issues'):
-                    authors[author_email]['issues'].extend(review['issues'])
+            # 找到修改此文件的作者
+            reviewers = file_to_commits.get(file_path, [])
+            
+            if not reviewers:
+                # 如果没有找到提交记录，则分配给所有作者（备选方案）
+                reviewers = list(authors.keys())
+            
+            # 将问题只分配给修改了此文件的作者
+            for author_email in reviewers:
+                if author_email in authors:  # 确保作者在过滤列表中
+                    authors[author_email]['files_changed'].add(file_path)
+                    if review.get('issues'):
+                        authors[author_email]['issues'].extend(review['issues'])
         
         # 转换为列表并计算统计
         author_list = []
