@@ -5,7 +5,6 @@ from typing import Dict, Any
 from datetime import datetime
 from src.formatters import (
     HtmlFormatter,
-    MarkdownFormatter,
     JsonFormatter,
     ExcelFormatter,
     EXCEL_AVAILABLE
@@ -36,7 +35,6 @@ class ReportGenerator:
         # 初始化所有格式化器
         self.formatters = {
             'html': HtmlFormatter(output_dir),
-            'markdown': MarkdownFormatter(output_dir),
             'json': JsonFormatter(output_dir),
         }
         
