@@ -53,9 +53,33 @@ def get_html_template() -> str:
         <!-- 问题列表 -->
         <h2 id="issues-section">🔍 问题详情</h2>
         <div id="issues-container" class="issues-list">
+            {% set all_issues = [] %}
+            {# 从author_stats收集问题 #}
             {% if review_data.author_stats %}
                 {% for author in review_data.author_stats %}
                     {% for issue in author.issues %}
+                        {% set _ = all_issues.append(issue) %}
+                    {% endfor %}
+                {% endfor %}
+            {% endif %}
+            {# 如果author_stats为空，从file_reviews收集问题 #}
+            {% if all_issues|length == 0 %}
+                {% for file_review in review_data.file_reviews %}
+                    {% for issue in file_review.issues %}
+                        {% set issue_with_file = issue.copy() if issue.copy else issue %}
+                        {% if issue.copy %}
+                            {% set _ = issue_with_file.update({'file_path': file_review.file_path}) %}
+                        {% else %}
+                            {% set issue_with_file = dict(issue, file_path=file_review.file_path) %}
+                        {% endif %}
+                        {% set _ = all_issues.append(issue_with_file) %}
+                    {% endfor %}
+                {% endfor %}
+            {% endif %}
+            
+            {% if all_issues|length > 0 %}
+                {% for issue in all_issues %}
+                    {% set author_name = issue.get('author', 'Unknown') if issue.get('author') else 'Unknown' %}
                     <div class="problem-card" data-severity="{{ issue.severity }}">
                         <!-- 问题头部 -->
                         <div class="problem-header">
@@ -63,7 +87,7 @@ def get_html_template() -> str:
                                 <span class="severity-badge badge-{{ issue.severity }}">{{ severity_labels[issue.severity] }}</span>
                                 <strong>{{ issue.category }}</strong>
                             </div>
-                            <div class="problem-author">👤 {{ author.name }}</div>
+                            <div class="problem-author">👤 {{ author_name }}</div>
                         </div>
                         
                         <!-- 文件、方法、位置信息 -->
@@ -103,7 +127,6 @@ def get_html_template() -> str:
                         </div>
                         {% endif %}
                     </div>
-                    {% endfor %}
                 {% endfor %}
             {% else %}
                 <div style="text-align: center; padding: 40px; color: #586069;">
