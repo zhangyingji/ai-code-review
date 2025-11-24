@@ -1,6 +1,6 @@
 # 代码评审系统
 
-自动化代码评审工具，对接 GitLab，使用大模型进行智能评审，按提交人生成评审报告。
+自动化代码评审工具，对接 GitLab，使用大模型进行评审
 
 ## 环境要求
 
@@ -15,7 +15,7 @@
 - ✅ **问题定位增强** - 指示问题所在的文件、行号、方法等详细信息
 - ✅ **交互式筛选** - 添加仪表盘筛选功能，按严重程度实时筛选问题
 - ✅ **可配置规则** - 支持自定义评审规则
-- ✅ **多格式报告** - 支持 HTML、Excel、JSON 格式
+- ✅ **多格式报告** - 支持 HTML、Excel 格式
 - ✅ **按作者分组** - 自动统计每位开发者的代码问题
 
 ## 快速开始
@@ -74,10 +74,9 @@ python main.py -s feature/new-feature
 python main.py -s develop -t main
 
 # 指定报告格式
-python main.py -f html  # html, excel, json
+python main.py -f html  # html, excel
 ```
 
-> 💡 **智能检测**：如果不指定目标分支，系统会自动检测源分支的创建起点（分离点），从 main/master/develop 中自动选择。
 
 ### 4. 查看报告
 
@@ -85,7 +84,6 @@ python main.py -f html  # html, excel, json
 
 - **HTML 报告**：用浏览器打开 HTML 文件查看，支持互动式筛选、代码段落展示
 - **Excel 报告**：用 Excel 打开 .xlsx 文件，包含多个工作表，便于数据流出和分析
-- **JSON 报告**：用文本编辑器查看，易于版本控制
 
 ## 配置说明
 
@@ -177,7 +175,7 @@ python main.py --help
   -c, --config       配置文件路径
   -s, --source       源分支
   -t, --target       目标分支
-  -f, --format       报告格式 (html/json)
+  -f, --format       报告格式 (html/excel)
   -o, --output       输出目录
   --log-level        日志级别 (DEBUG/INFO/WARNING/ERROR)
   --no-group-by-author  不按作者分组

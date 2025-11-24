@@ -5,7 +5,6 @@ from typing import Dict, Any
 from datetime import datetime
 from src.formatters import (
     HtmlFormatter,
-    JsonFormatter,
     ExcelFormatter,
     EXCEL_AVAILABLE
 )
@@ -33,9 +32,8 @@ class ReportGenerator:
         os.makedirs(output_dir, exist_ok=True)
         
         # 初始化所有格式化器
-        self.formatters = {
+        self.formatters: Dict[str, Any] = {
             'html': HtmlFormatter(output_dir),
-            'json': JsonFormatter(output_dir),
         }
         
         # Excel格式化器可选
@@ -51,7 +49,7 @@ class ReportGenerator:
         
         Args:
             review_data: 评审数据
-            format: 报告格式 (html, markdown, json, excel)
+            format: 报告格式 (html, excel)
             group_by_author: 是否按作者分组（默认True，用于向后兼容）
             **kwargs: 额外参数，传递给格式化器
             

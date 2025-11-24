@@ -1,7 +1,6 @@
 """报告格式化器模块"""
 from .base_formatter import BaseFormatter
 from .html_formatter import HtmlFormatter
-from .json_formatter import JsonFormatter
 
 try:
     from .excel_formatter import ExcelFormatter
@@ -13,7 +12,6 @@ except ImportError:
 __all__ = [
     'BaseFormatter',
     'HtmlFormatter',
-    'JsonFormatter',
     'ExcelFormatter',
     'EXCEL_AVAILABLE'
 ]

@@ -114,7 +114,7 @@ def main():
     parser.add_argument('-p', '--project', help='项目名称 (当配置中有多个项目时，用此参数选择特定项目)')
     parser.add_argument('-s', '--source', help='源分支名称 (覆盖配置文件)')
     parser.add_argument('-t', '--target', help='目标分支名称 (覆盖配置文件)')
-    parser.add_argument('-f', '--format', choices=['html', 'json'],
+    parser.add_argument('-f', '--format', choices=['html', 'excel'],
                        help='报告格式 (覆盖配置文件)')
     parser.add_argument('-o', '--output', help='报告输出目录 (覆盖配置文件)')
     parser.add_argument('--no-group-by-author', action='store_true',
