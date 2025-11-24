@@ -186,13 +186,30 @@ python main.py --help
 ```
 code-review/
 ├── src/
-│   ├── gitlab_client.py     # GitLab API 集成
-│   ├── llm_client.py        # 大模型客户端
-│   ├── review_engine.py     # 评审引擎
-│   └── report_generator.py  # 报告生成器
-├── main.py                   # 主程序
-├── config.yaml              # 配置文件
-└── requirements.txt         # 依赖列表
+│   ├── gitlab_client.py       # GitLab API 集成
+│   ├── llm_client.py          # 大模型客户端
+│   ├── review_engine.py       # 评审引擎
+│   ├── report_generator.py    # 报告生成器
+│   ├── formatters/            # 报告格式化器模块
+│   │   ├── base_formatter.py
+│   │   ├── html_formatter.py
+│   │   ├── excel_formatter.py
+│   │   └── __init__.py
+│   ├── templates/             # HTML 模板和样式
+│   │   ├── html_template.py
+│   │   ├── styles.py
+│   │   └── __init__.py
+│   ├── utils/                 # 工具函数
+│   │   ├── data_processor.py
+│   │   ├── helpers.py
+│   │   └── __init__.py
+│   ├── storage/               # 数据存储 (予留接口)
+│   ├── integrations/          # 系统对接 (予留接口)
+│   └── schedulers/            # 任务调度 (予留接口)
+├── main.py                    # 主程序
+├── config.yaml             # 配置文件
+├── CHANGELOG.md            # 更新日志
+└── requirements.txt        # 依赖列表
 ```
 
 ## 许可证
