@@ -1,5 +1,58 @@
 # 更新日志
 
+## [v2.3.5] - 2025-11-24
+
+### 修复
+
+- **HTML报告作者显示问题**：修复问题详情中作者显示Unknown的问题
+  - 在 `get_commits_between_branches` 中获取每个commit的详细信息
+  - 从 `commit.diff()` 中提取 `modified_files` 列表
+  - 建立文件到作者的正确映射关系
+  - 确保问题正确分配给修改了相关文件的作者
+
+- **代码段落缺失问题**：修复部分问题没有显示代码段落的问题
+  - 在 `_group_by_author` 中为问题添加 `file_path` 字段
+  - 确保从 `author_stats` 收集的问题包含完整信息
+  - 保持 `author`、`file_path` 和 `code_snippet` 字段的一致性
+
+- **提交人过滤逻辑**：修复过滤后仍继续扫描文件的问题
+  - 在提交人过滤后，如果commits为空，直接返回空报告
+  - 添加早期退出检查，避免无意义的文件扫描
+  - 记录warning日志，明确告知跳过文件扫描的原因
+  - 避免浪费LLM API调用和评审时间
+
+- **LLM响应JSON解析**：改进对LLM返回JSON格式的容错性
+  - 添加JSONDecodeError专门捕获和详细日志
+  - 自动修复常见JSON错误（尾随逗号、单引号等）
+  - 改进Prompt要求LLM严格遵守JSON格式
+  - JSON解析失败时返回空结果而不是崩溃
+
+### 优化
+
+- **文档精简**：精简CHANGELOG和README文档
+  - 删除CHANGELOG中的“版本规划”和“贡献指南”部分
+  - 更新README项目结构，补充完整的模块化架构说明
+  - 新增 formatters/、templates/、utils/ 模块说明
+  - 新增预留扩展接口说明 (storage/、integrations/、schedulers/)
+
+### 重构
+
+- **移除报告格式支持**：简化报告生成系统
+  - 移除Markdown报告格式支持
+  - 移除JSON报告格式支持
+  - 保留HTML和Excel两种核心报告格式
+  - 减少代码维护成本，聚焦于核心功能
+
+### 新增
+
+- **GitLab项目名称配置**：增加项目名称配置字段
+  - 在config.yaml中添加 `project_name` 字段（非必填）
+  - 在启动日志中优先显示项目名称
+  - 支持多项目配置时从--project参数自动获取
+  - 方便日志识别和项目管理
+
+---
+
 ## [v2.3.0] - 2025-11-23
 
 ### 🎯 重构
