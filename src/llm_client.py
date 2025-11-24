@@ -141,9 +141,15 @@ class LLMClient:
             enable_thinking: 是否启用深度思考模式
             
         Returns:
-            评审结果
+            评审结果（包含 issues 数组和 summary 字符串）
+            
+        问题严重程度定义 (severity)：
+        - critical: 严重个子 (SQL注入、内存泄漏、数据丢失等安全问题)
+        - major: 主要个子 (丢失錯误处理、性能瓶颈、逻辑错误等)
+        - minor: 次要个子 (代码风格不一致、命名不清晰等)
+        - suggestion: 建议 (代码改进、最佳实践等)
         """
-        # 构建prompt
+        # 构建 prompt
         rules_text = "\n".join([f"- {rule}" for rule in rules])
         
         prompt = f"""你是一个专业的代码评审专家。请对以下代码变更进行评审。

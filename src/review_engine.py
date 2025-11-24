@@ -168,6 +168,11 @@ class ReviewEngine:
                 )
                 if code_snippet:
                     issue['code_snippet'] = code_snippet
+                else:
+                    # 代码段落提取失败时记录信息
+                    line_info = issue.get('line', 'N/A')
+                    if line_info and line_info != 'N/A':
+                        logger.debug(f"无法为 {file_path} 的第 {line_info} 行提取代码段落")
         
         return review_result
     
@@ -341,6 +346,10 @@ class ReviewEngine:
                 if author_email in authors:  # 确保作者在过滤列表中
                     authors[author_email]['files_changed'].add(file_path)
                     if review.get('issues'):
+                        # 为每个问题添加作者信息（用于HTML模板显示）
+                        author_name = authors[author_email]['name']
+                        for issue in review['issues']:
+                            issue['author'] = author_name
                         authors[author_email]['issues'].extend(review['issues'])
         
         # 转换为列表并计算统计
