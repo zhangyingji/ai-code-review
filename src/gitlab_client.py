@@ -260,6 +260,19 @@ class GitLabClient:
         
         commits = []
         for commit in comparison['commits']:
+            # 获取详细的commit信息以获取modified_files
+            try:
+                commit_detail = self.project.commits.get(commit['id'])
+                # 从 diff 中提取修改的文件列表
+                modified_files = []
+                if hasattr(commit_detail, 'diff'):
+                    for diff in commit_detail.diff():
+                        if 'new_path' in diff:
+                            modified_files.append(diff['new_path'])
+            except Exception as e:
+                logger.warning(f"无法获取commit {commit['id']} 的详细信息: {e}")
+                modified_files = []
+            
             commits.append({
                 'id': commit['id'],
                 'short_id': commit['short_id'],
@@ -267,7 +280,8 @@ class GitLabClient:
                 'message': commit['message'],
                 'author_name': commit['author_name'],
                 'author_email': commit['author_email'],
-                'created_at': commit['created_at']
+                'created_at': commit['created_at'],
+                'modified_files': modified_files
             })
         
         return commits

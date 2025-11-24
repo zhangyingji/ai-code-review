@@ -375,10 +375,14 @@ class ReviewEngine:
                 if author_email in authors:  # 确保作者在过滤列表中
                     authors[author_email]['files_changed'].add(file_path)
                     if review.get('issues'):
-                        # 为每个问题添加作者信息（用于HTML模板显示）
+                        # 为每个问题添加作者和文件信息（用于HTML模板显示）
                         author_name = authors[author_email]['name']
                         for issue in review['issues']:
+                            # 添加作者信息
                             issue['author'] = author_name
+                            # 添加文件路径（如果还没有）
+                            if 'file_path' not in issue:
+                                issue['file_path'] = file_path
                         authors[author_email]['issues'].extend(review['issues'])
         
         # 转换为列表并计算统计
