@@ -183,7 +183,10 @@ class LLMClient:
 1. 每个问题必须包含具体的行号(不能是'N/A'),格式为 '42' 或 '42-58'
 2. 对于前端/后端代码,尽量识别并填写涉及的方法/函数名称
 3. 如果没有发现问题,issues数组可以为空,但请给出正面的summary
-4. 只返回JSON,不要有其他内容
+4. **必须严格遵守JSON格式,不要包含注释,不要有多余的逗号**
+5. **所有字符串值必须用双引号包围,不要使用单引号**
+6. **description和suggestion中如果包含双引号,请使用转义 \" **
+7. 只返回JSON,不要有其他内容或解释
 
 示例:
 {{
@@ -218,8 +221,30 @@ class LLMClient:
             # 尝试提取JSON内容
             json_match = re.search(r'\{.*\}', response, re.DOTALL)
             if json_match:
-                result = json.loads(json_match.group())
+                json_str = json_match.group()
+                
+                # 尝试修复常见的JSON错误
+                # 1. 移除尾随逗号 (trailing comma)
+                json_str = re.sub(r',\s*([}\]])', r'\1', json_str)
+                # 2. 将单引号改为双引号 (只在键名和字符串值中)
+                # 注意:这可能不完美,但可以处理大部分情况
+                json_str = json_str.replace("\'", '"')
+                
+                try:
+                    result = json.loads(json_str)
+                except json.JSONDecodeError as json_error:
+                    # JSON解析失败，记录详细信息
+                    logger.error(f"JSON解析失败: {json_error}")
+                    logger.error(f"LLM原始响应: {response[:500]}...")  # 只显示前500字符
+                    logger.error(f"提取的JSON字符串: {json_str[:500]}...")  # 只显示前500字符
+                    
+                    # 返回空结果,但在summary中说明问题
+                    result = {
+                        "issues": [], 
+                        "summary": f"JSON解析错误: {str(json_error)}. 请检查LLM返回格式是否符合要求"
+                    }
             else:
+                logger.warning(f"未找到JSON格式，原始响应: {response[:500]}...")
                 result = {"issues": [], "summary": response}
             
             return result
