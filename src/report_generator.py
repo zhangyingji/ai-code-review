@@ -7,8 +7,10 @@ import json
 from typing import Dict, List
 from datetime import datetime
 from jinja2 import Template
-from src.simple_html_template import SIMPLE_HTML_TEMPLATE
 import logging
+from src.formatters.html_formatter import HtmlFormatter
+from src.formatters.markdown_formatter import MarkdownFormatter
+from src.formatters.json_formatter import JsonFormatter
 
 try:
     from openpyxl import Workbook as OpenpyxlWorkbook
@@ -106,23 +108,9 @@ class ReportGenerator:
         return filepath
     
     def _generate_html_report(self, review_data: Dict, group_by_author: bool) -> str:
-        """生成HTML格式报告 - 使用简化模板"""
-        # 对所有问题进行排序（输出前）
-        if group_by_author and review_data.get('author_stats'):
-            for author in review_data['author_stats']:
-                if author.get('issues'):
-                    author['issues'] = self._sort_issues_by_severity(author['issues'])
-        
-        for file_review in review_data.get('file_reviews', []):
-            if file_review.get('issues'):
-                file_review['issues'] = self._sort_issues_by_severity(file_review['issues'])
-        
-        # 使用简化模板
-        template = Template(SIMPLE_HTML_TEMPLATE)
-        return template.render(
-            review_data=review_data,
-            severity_labels=SEVERITY_LABELS
-        )
+        """生成HTML格式报告 - 使用新的HtmlFormatter"""
+        formatter = HtmlFormatter(self.output_dir)
+        return formatter.format(review_data, group_by_author=group_by_author)
     
     def _generate_markdown_report(self, review_data: Dict, group_by_author: bool) -> str:
         """生成Markdown格式报告"""
