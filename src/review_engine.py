@@ -207,6 +207,35 @@ class ReviewEngine:
             original_count = len(commits)
             commits = [c for c in commits if self._should_review_author(c.get('author_email', ''))]
             logger.info(f"提交人过滤: {original_count} -> {len(commits)} 个提交")
+            
+            # 如果过滤后没有任何提交，直接返回空报告
+            if len(commits) == 0:
+                logger.warning("过滤后没有任何提交需要评审，跳过文件扫描")
+                end_time = datetime.now()
+                duration = (end_time - start_time).total_seconds()
+                return {
+                    'metadata': {
+                        'review_branch': review_branch,
+                        'base_branch': base_branch,
+                        'source_branch': review_branch,
+                        'target_branch': base_branch,
+                        'review_time': start_time.isoformat(),
+                        'duration_seconds': duration,
+                        'total_commits': 0,
+                        'total_files_changed': len(diffs),
+                        'total_files_reviewed': 0,
+                        'concurrent_mode': self.enable_concurrent
+                    },
+                    'commits': [],
+                    'file_reviews': [],
+                    'author_stats': [],
+                    'statistics': {
+                        'total_issues': 0,
+                        'by_severity': {'critical': 0, 'major': 0, 'minor': 0, 'suggestion': 0},
+                        'total_additions': 0,
+                        'total_deletions': 0
+                    }
+                }
         
         # 收集评审规则
         rules = self.collect_review_rules()
