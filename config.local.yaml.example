@@ -151,8 +151,10 @@ file_filter:
 
 # 提交人配置
 committer_filter:
-  # 当列表非空時，仅评审列表中的提交人的提交
+  # 当authors列表非空时，仅评审列表中的提交人的提交
+  # 必须使用提交人的邮箱地址（而不是用户名）
+  # 使用命令 git log --format="%ae" 可查看提交人邮箱
   authors:
-    # - "zhangsan"
-    # - "lisi"
-    # - "wangwu"
+    # - "zhangsan@example.com"
+    # - "lisi@example.com"
+    # - "wangwu@example.com"
