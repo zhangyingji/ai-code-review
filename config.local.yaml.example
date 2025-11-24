@@ -9,6 +9,7 @@ gitlab:
   
   # 选项 1: 第一个项目
   project_id: 123  # 项目 ID,在项目设置中查看
+  project_name: "my-project"  # 项目名称（页应地，用于日志显示）
   
   # 选项 2: 配置多个项目，会根据指定的 project_name 选择
   # 将此方案的 project_id 注释掉，削除下面的 # 即可使用

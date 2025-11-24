@@ -9,6 +9,7 @@ gitlab:
   
   # 单项目配置（选择 1）
   project_id: 123
+  project_name: ""  # 项目名称（非必填，用于日志显示）
   
   # 多项目配置（选择 2，注释掉 project_id，使用 -p 参数指定项目）
   # projects:

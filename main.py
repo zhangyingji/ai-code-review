@@ -147,6 +147,7 @@ def main():
         logger.info("="*70)
         # 获取项目配置
         project_id = config['gitlab'].get('project_id')
+        project_name = config['gitlab'].get('project_name', '')  # 非必填
         if not project_id:
             # 如果没有 project_id，检查是否有 projects 列表
             projects = config['gitlab'].get('projects', [])
@@ -168,13 +169,18 @@ def main():
                     return 1
                 
                 project_id = found_project['id']
+                project_name = args.project
                 logger.info(f"使用项目: {args.project} (ID: {project_id})")
             else:
                 logger.error(f"错误: 配置中有多个项目，请使用 -p/--project 指定项目")
                 logger.error(f"可用项目: {', '.join(p.get('name', '') for p in projects)}")
                 return 1
         
-        logger.info(f"使用项目 ID: {project_id}")
+        # 打印项目信息
+        if project_name:
+            logger.info(f"使用项目: {project_name} (ID: {project_id})")
+        else:
+            logger.info(f"使用项目 ID: {project_id}")
         source_branch = args.source or config['branch'].get('review_branch', '')
         target_branch = args.target or config['branch'].get('base_branch', '')
         report_format = args.format or config['report']['format']
