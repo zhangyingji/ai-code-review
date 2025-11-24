@@ -266,7 +266,8 @@ class GitLabClient:
                 # 从 diff 中提取修改的文件列表
                 modified_files = []
                 if hasattr(commit_detail, 'diff'):
-                    for diff in commit_detail.diff():
+                    # 添加 get_all=True 以获取所有diff项
+                    for diff in commit_detail.diff(get_all=True):
                         if 'new_path' in diff:
                             modified_files.append(diff['new_path'])
             except Exception as e:
