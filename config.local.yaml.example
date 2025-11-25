@@ -9,7 +9,7 @@ gitlab:
   
   # 选项 1: 第一个项目
   project_id: 123  # 项目 ID,在项目设置中查看
-  project_name: "my-project"  # 项目名称（页应地，用于日志显示）
+  project_name: "my-project"  # 项目名称（用于日志显示）
   
   # 选项 2: 配置多个项目，会根据指定的 project_name 选择
   # 将此方案的 project_id 注释掉，削除下面的 # 即可使用
@@ -37,7 +37,7 @@ llm:
   # 模型名称，必须与 API 服务器的模型一致
   model: "qwen3-30b-a3b"
   temperature: 0.3
-  max_tokens: 2000
+  max_tokens: 8192
   
   # 是否启用深度思考模式
   # 设置为 true 即可启用（某些模型并不支持）
