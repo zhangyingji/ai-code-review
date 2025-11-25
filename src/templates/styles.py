@@ -72,4 +72,36 @@ def get_css_styles() -> str:
     .code-line.in-range .code-line-num { background-color: #ffe5a1 !important; }
     
     footer { margin-top: 40px; padding-top: 20px; border-top: 1px solid #e1e4e8; text-align: center; color: #586069; font-size: 0.9em; }
+    
+    /* 维度视图 */
+    .dimension-view { display: none; }
+    .dimension-view.active { display: block; }
+    
+    /* 维度选项卡 */
+    .dimension-tab { cursor: pointer; }
+    .dimension-tab.active { box-shadow: 0 4px 12px rgba(3, 102, 214, 0.3); border-color: rgba(255, 255, 255, 0.5); }
+    
+    /* 严重程度筛选仪表盘 */
+    .severity-filter-dashboard { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 15px; margin-bottom: 20px; }
+    .filter-item { text-align: center; padding: 12px; background: #f6f8fa; border-radius: 6px; cursor: pointer; border: 2px solid transparent; transition: all 0.3s; }
+    .filter-item:hover { background: #e1e4e8; }
+    .filter-label { font-size: 0.9em; color: #586069; margin-bottom: 6px; }
+    .filter-value { font-size: 1.8em; font-weight: bold; }
+    
+    /* 文件分组 */
+    .file-group { margin-bottom: 30px; }
+    .file-group-title { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 12px 15px; border-radius: 6px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; }
+    .file-stats { font-size: 0.85em; opacity: 0.9; }
+    
+    /* 作者分组 */
+    .author-group { margin-bottom: 30px; }
+    .author-group-title { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 12px 15px; border-radius: 6px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; }
+    .author-stats { font-size: 0.85em; opacity: 0.9; }
+    
+    /* 严重程度分组 */
+    .severity-group { margin-bottom: 30px; }
+    .severity-group-title { background: #f6f8fa; padding: 12px 15px; border-radius: 6px; margin-bottom: 15px; display: flex; align-items: center; gap: 12px; border-left: 4px solid #e1e4e8; }
+    
+    /* 问题容器 */
+    .issues-container { margin-top: 20px; }
 </style>"""
