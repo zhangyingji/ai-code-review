@@ -25,6 +25,10 @@ gitlab:
 branch:
   review_branch: "develop"  # 要评审的分支
   base_branch: "main"     # 对比基准分支（必须指定）
+  # 分支比较策略
+  # - "direct": 仅比较两个分支之间的直接差异（默认，最快）
+  # - "all_commits": 获取并评审所有提交记录及其差异（适合合并驱动的工作流，较慢）
+  strategy: "direct"
 
 # 大模型配置
 llm:
@@ -159,3 +163,17 @@ committer_filter:
     # - "zhangsan@example.com"
     # - "lisi@example.com"
     # - "wangwu@example.com"
+
+# 性能配置
+performance:
+  enable_concurrent: true  # 是否启用并发评审
+  max_workers: 3           # 并发工作线程数
+
+# 日志配置
+logging:
+  enabled: true            # 启用文件日志
+  log_dir: "./logs"        # 日志目录
+  level: "INFO"            # 日志级别: DEBUG, INFO, WARNING, ERROR
+  max_file_size: 10        # 单个日志文件最大大小(MB)
+  backup_count: 5          # 保留的日志文件数量
+  console_output: true     # 同时输出到控制台
