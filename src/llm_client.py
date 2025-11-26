@@ -164,7 +164,11 @@ class LLMClient:
 请根据以下评审规则进行检查:
 {rules_text}
 
-请以JSON格式返回评审结果,格式如下:
+=== 重要 ===
+你必须只返回有效的JSON格式,不要包含任何其他内容,包括思考过程、解释或markdown代码块。
+直接返回JSON对象,格式必须完全符合以下要求。
+
+请以纯JSON格式返回评审结果:
 {{
     "issues": [
         {{
@@ -183,25 +187,11 @@ class LLMClient:
 1. 每个问题必须包含具体的行号(不能是'N/A'),格式为 '42' 或 '42-58'
 2. 对于前端/后端代码,尽量识别并填写涉及的方法/函数名称
 3. 如果没有发现问题,issues数组可以为空,但请给出正面的summary
-4. **必须严格遵守JSON格式,不要包含注释,不要有多余的逗号**
-5. **所有字符串值必须用双引号包围,不要使用单引号**
-6. **description和suggestion中如果包含双引号,请使用转义 \" **
-7. 只返回JSON,不要有其他内容或解释
-
-示例:
-{{
-    "issues": [
-        {{
-            "severity": "major",
-            "line": "42-58",
-            "method": "getUserInfo",
-            "category": "security",
-            "description": "未进行输入验证,容易遭受SQL注入攻击",
-            "suggestion": "使用参数化查询或ORM框架处理数据库操作"
-        }}
-    ],
-    "summary": "发现1个安全问题,建议修复"
-}}"""
+4. 必须严格遵守JSON格式,不要包含注释,不要有多余的逗号
+5. 所有字符串值必须用双引号包围,不要使用单引号
+6. description和suggestion中如果包含双引号,请使用转义 \\"
+7. 只返回JSON,不要有任何其他内容
+8. 确保JSON完整且格式正确,否则无法被系统处理"""
 
         messages = [
             {"role": "system", "content": "你是一个专业的代码评审专家,擅长发现代码中的问题并给出改进建议。"},
@@ -218,8 +208,15 @@ class LLMClient:
             import json
             import re
             
+            # 移除think标签或思考梯段（处理启用深度思考时的输出）
+            # 如果包含<think>...</think>，先移除它
+            cleaned_response = re.sub(r'<think>.*?</think>', '', response, flags=re.DOTALL)
+            if not cleaned_response.strip():
+                # 如果整个响应都是思考，使用原始响应
+                cleaned_response = response
+            
             # 尝试提取JSON内容
-            json_match = re.search(r'\{.*\}', response, re.DOTALL)
+            json_match = re.search(r'\{.*\}', cleaned_response, re.DOTALL)
             if json_match:
                 json_str = json_match.group()
                 
@@ -229,20 +226,36 @@ class LLMClient:
                 # 2. 将单引号改为双引号 (只在键名和字符串值中)
                 # 注意:这可能不完美,但可以处理大部分情况
                 json_str = json_str.replace("\'", '"')
+                # 3. 修复缺少逗号的问题（在相邻的对象/数组之间）
+                # 例如：}\n{ 应该是},\n{
+                json_str = re.sub(r'(\})\s*(["\{])', r'\1,\2', json_str)
+                # 4. 修复数组元素之间缺少逗号的问题
+                # 检查 JSON 结构中可能缺少逗号的地方
+                json_str = re.sub(r'(")}\s*(["\{])', r'\1}},\2', json_str)
                 
                 try:
                     result = json.loads(json_str)
                 except json.JSONDecodeError as json_error:
-                    # JSON解析失败，记录详细信息
-                    logger.error(f"JSON解析失败: {json_error}")
-                    logger.error(f"LLM原始响应: {response[:500]}...")  # 只显示前500字符
-                    logger.error(f"提取的JSON字符串: {json_str[:500]}...")  # 只显示前500字符
+                    # JSON解析失败，尝试更激进的修复
+                    logger.debug(f"首次JSON解析失败，尝试激进修复: {json_error}")
                     
-                    # 返回空结果,但在summary中说明问题
-                    result = {
-                        "issues": [], 
-                        "summary": f"JSON解析错误: {str(json_error)}. 请检查LLM返回格式是否符合要求"
-                    }
+                    # 尝试修复：为缺少的对象属性添加逗号
+                    # 匹配模式："key": "value"\n"key": 应该变成 "key": "value",\n"key":
+                    json_str = re.sub(r'("\s*:\s*[^,}\]\n]*)(\s*")', r'\1,\2', json_str)
+                    
+                    try:
+                        result = json.loads(json_str)
+                    except json.JSONDecodeError as json_error2:
+                        # 记录详细信息
+                        logger.error(f"JSON解析失败: {json_error2}")
+                        logger.error(f"LLM原始响应: {response[:1000]}...")  # 显示更多字符
+                        logger.error(f"提取的JSON字符串: {json_str[:1000]}...")  # 显示更多字符
+                        
+                        # 返回空结果,但在summary中说明问题
+                        result = {
+                            "issues": [], 
+                            "summary": f"JSON解析错误: {str(json_error2)}. LLM返回格式不符合要求。请检查LLM的prompt或模型输出设置。"
+                        }
             else:
                 logger.warning(f"未找到JSON格式，原始响应: {response[:500]}...")
                 result = {"issues": [], "summary": response}

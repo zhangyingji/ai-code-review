@@ -136,9 +136,18 @@ class ReviewEngine:
             return None
         
         # 对于新增文件，即使没有diff也需要评审（使用整个文件内容）
+        code_content = diff_info.get('diff', '')
         if diff_info.get('new_file'):
             logger.info(f"评审新增文件: {file_path}")
-        elif not diff_info.get('diff'):
+            # 为新增文件尝试获取完整文件内容
+            if not code_content or code_content.strip() == '':
+                logger.debug(f"新增文件 {file_path} 的diff为空，尝试获取完整文件内容")
+                full_content = self.gitlab_client.get_file_content(file_path, diff_info.get('review_branch', 'HEAD'))
+                if full_content:
+                    # 构造类似diff格式的内容（全部为新增）
+                    code_content = '\n'.join([f'+ {line}' for line in full_content.split('\n')])
+                    logger.debug(f"成功获取新增文件 {file_path} 的完整内容")
+        elif not code_content:
             logger.info(f"跳过无差异文件: {file_path}")
             return None
         
@@ -146,7 +155,7 @@ class ReviewEngine:
         
         # 使用大模型评审
         review_result = self.llm_client.review_code(
-            code_diff=diff_info['diff'],
+            code_diff=code_content,
             file_path=file_path,
             rules=rules,
             enable_thinking=self.enable_thinking

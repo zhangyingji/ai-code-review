@@ -229,7 +229,8 @@ class GitLabClient:
                 'renamed_file': diff['renamed_file'],
                 'diff': diff['diff'],
                 'additions': 0,
-                'deletions': 0
+                'deletions': 0,
+                'review_branch': source_branch  # 保存source_branch，用于获取文件内容
             }
             
             # 统计增删行数
@@ -256,13 +257,18 @@ class GitLabClient:
         Returns:
             提交记录列表
         """
-        comparison = self.project.repository_compare(target_branch, source_branch)
+        # 使用 list() 方法获取所有提交，不只是前 20 个
+        commits_list = self.project.commits.list(
+            ref_name=source_branch,
+            get_all=True,
+            order_by='default'
+        )
         
         commits = []
-        for commit in comparison['commits']:
+        for commit_data in commits_list:
             # 获取详细的commit信息以获取modified_files
             try:
-                commit_detail = self.project.commits.get(commit['id'])
+                commit_detail = self.project.commits.get(commit_data.id)
                 # 从 diff 中提取修改的文件列表
                 modified_files = []
                 if hasattr(commit_detail, 'diff'):
@@ -271,17 +277,17 @@ class GitLabClient:
                         if 'new_path' in diff:
                             modified_files.append(diff['new_path'])
             except Exception as e:
-                logger.warning(f"无法获取commit {commit['id']} 的详细信息: {e}")
+                logger.warning(f"无法获取commit {commit_data.id} 的详细信息: {e}")
                 modified_files = []
             
             commits.append({
-                'id': commit['id'],
-                'short_id': commit['short_id'],
-                'title': commit['title'],
-                'message': commit['message'],
-                'author_name': commit['author_name'],
-                'author_email': commit['author_email'],
-                'created_at': commit['created_at'],
+                'id': commit_data.id,
+                'short_id': commit_data.short_id,
+                'title': commit_data.title,
+                'message': commit_data.message,
+                'author_name': commit_data.author_name,
+                'author_email': commit_data.author_email,
+                'created_at': commit_data.created_at,
                 'modified_files': modified_files
             })
         
