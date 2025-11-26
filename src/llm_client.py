@@ -208,11 +208,28 @@ class LLMClient:
             import json
             import re
             
-            # 移除think标签或思考梯段（处理启用深度思考时的输出）
-            # 如果包含<think>...</think>，先移除它
-            cleaned_response = re.sub(r'<think>.*?</think>', '', response, flags=re.DOTALL)
+            # 移除think标签或思考段落（处理启用深度思考时的输出）
+            cleaned_response = response
+            
+            # 情况 1：处理成对的 <think>...</think> 标签
+            if '<think>' in cleaned_response and '</think>' in cleaned_response:
+                logger.debug("检测到成对的 <think></think> 标签，清除思考内容")
+                cleaned_response = re.sub(r'<think>.*?</think>', '', cleaned_response, flags=re.DOTALL)
+            
+            # 情况 2：QwQ模型特殊情况 - 只有 </think> 而没有 <think>
+            # 移除 </think> 之前的所有内容
+            elif '</think>' in cleaned_response:
+                logger.debug("检测到单独的 </think> 标签（QwQ模式），清除之前的思考内容")
+                # 找到 </think> 的位置，只保留之后的内容
+                think_end_pos = cleaned_response.find('</think>')
+                if think_end_pos != -1:
+                    # 保留 </think> 之后的内容
+                    cleaned_response = cleaned_response[think_end_pos + len('</think>'):]
+                    logger.debug(f"清除后的响应长度: {len(cleaned_response)} 字符")
+            
+            # 如果清除后为空，使用原始响应
             if not cleaned_response.strip():
-                # 如果整个响应都是思考，使用原始响应
+                logger.warning("清除思考内容后响应为空，使用原始响应")
                 cleaned_response = response
             
             # 尝试提取JSON内容
@@ -235,6 +252,7 @@ class LLMClient:
                 
                 try:
                     result = json.loads(json_str)
+                    logger.debug(f"JSON解析成功，问题数量: {len(result.get('issues', []))}")
                 except json.JSONDecodeError as json_error:
                     # JSON解析失败，尝试更激进的修复
                     logger.debug(f"首次JSON解析失败，尝试激进修复: {json_error}")
@@ -245,11 +263,13 @@ class LLMClient:
                     
                     try:
                         result = json.loads(json_str)
+                        logger.debug(f"激进修复JSON解析成功")
                     except json.JSONDecodeError as json_error2:
                         # 记录详细信息
                         logger.error(f"JSON解析失败: {json_error2}")
-                        logger.error(f"LLM原始响应: {response[:1000]}...")  # 显示更多字符
-                        logger.error(f"提取的JSON字符串: {json_str[:1000]}...")  # 显示更多字符
+                        logger.error(f"LLM原始响应: {response[:1000]}...")
+                        logger.error(f"清除后的响应: {cleaned_response[:1000]}...")
+                        logger.error(f"提取的JSON字符串: {json_str[:1000]}...")
                         
                         # 返回空结果,但在summary中说明问题
                         result = {
