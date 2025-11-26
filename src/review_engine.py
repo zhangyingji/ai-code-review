@@ -176,13 +176,14 @@ class ReviewEngine:
         
         return review_result
     
-    def review_branches(self, review_branch: str, base_branch: str = '') -> Dict:
+    def review_branches(self, review_branch: str, base_branch: str = '', time_range: Optional[Dict] = None) -> Dict:
         """
         评审两个分支之间的差异
         
         Args:
             review_branch: 要评审的分支
             base_branch: 基准分支，必须指定
+            time_range: 时间范围过滤，包含 since 和 until 键
             
         Returns:
             完整的评审结果
@@ -194,13 +195,28 @@ class ReviewEngine:
         logger.info(f"开始评审: {base_branch} -> {review_branch}")
         start_time = datetime.now()
         
-        # 获取差异
-        diffs = self.gitlab_client.get_diff_between_branches(review_branch, base_branch)
-        logger.info(f"共有 {len(diffs)} 个文件发生变化")
-        
-        # 获取提交记录
-        commits = self.gitlab_client.get_commits_between_branches(review_branch, base_branch)
-        logger.info(f"共有 {len(commits)} 个提交")
+        # 如果启用了时间过滤，使用不同的方式获取提交
+        if time_range and time_range.get('enabled'):
+            logger.info(f"启用时间过滤: {time_range.get('since')} ~ {time_range.get('until')}")
+            # 按时间范围获取提交
+            commits = self.gitlab_client.get_commits_by_time_range(
+                review_branch,
+                time_range['since'],
+                time_range.get('until')
+            )
+            logger.info(f"共有 {len(commits)} 个提交")
+            
+            # 获取这些提交的文件差异
+            diffs = self.gitlab_client.get_diffs_for_commits(commits)
+            logger.info(f"共有 {len(diffs)} 个文件发生变化")
+        else:
+            # 使用分支对比模式
+            diffs = self.gitlab_client.get_diff_between_branches(review_branch, base_branch)
+            logger.info(f"共有 {len(diffs)} 个文件发生变化")
+            
+            # 获取提交记录
+            commits = self.gitlab_client.get_commits_between_branches(review_branch, base_branch)
+            logger.info(f"共有 {len(commits)} 个提交")
         
         # 根据配置对提交记录进行过滤
         if self.filter_authors:
@@ -285,6 +301,17 @@ class ReviewEngine:
                 'total_deletions': sum(d.get('deletions', 0) for d in diffs)
             }
         }
+        
+        # 添加时间过滤信息到元数据
+        if time_range and time_range.get('enabled'):
+            review_report['metadata'].update({
+                'time_filter_enabled': True,
+                'time_filter_since': time_range.get('since'),
+                'time_filter_until': time_range.get('until'),
+                'time_filter_timezone': time_range.get('timezone', 'UTC')
+            })
+        else:
+            review_report['metadata']['time_filter_enabled'] = False
         
         logger.info(f"评审完成,耗时 {duration:.2f} 秒,发现 {total_issues} 个问题")
         return review_report

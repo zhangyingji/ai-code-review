@@ -122,6 +122,19 @@ def main():
     parser.add_argument('--log-level', choices=['DEBUG', 'INFO', 'WARNING', 'ERROR'],
                        help='日志级别 (覆盖配置文件)')
     
+    # 时间过滤相关参数
+    time_group = parser.add_argument_group('时间过滤选项')
+    time_group.add_argument('--today', action='store_true',
+                           help='评审今天的提交')
+    time_group.add_argument('--yesterday', action='store_true',
+                           help='评审昨天的提交')
+    time_group.add_argument('--last-n-days', type=int, metavar='N',
+                           help='评审最近N天的提交')
+    time_group.add_argument('--since', metavar='DATE',
+                           help='起始日期 (YYYY-MM-DD 或 YYYY-MM-DD HH:MM:SS)')
+    time_group.add_argument('--until', metavar='DATE',
+                           help='结束日期 (YYYY-MM-DD 或 YYYY-MM-DD HH:MM:SS)')
+    
     args = parser.parse_args()
     
     log_file_path = ""
@@ -237,6 +250,74 @@ def main():
         committer_filter_config = config.get('committer_filter', {})
         filter_authors = committer_filter_config.get('authors', [])
         
+        # 处理时间过滤配置
+        time_range = None
+        time_filter_config = config.get('time_filter', {})
+        
+        # 命令行参数优先级高于配置文件
+        if args.today:
+            from src.utils.time_filter import TimeFilter
+            time_filter = TimeFilter(time_filter_config.get('timezone', 'Asia/Shanghai'))
+            since, until = time_filter.get_today_range()
+            time_range = {
+                'enabled': True,
+                'since': since.isoformat(),
+                'until': until.isoformat(),
+                'timezone': str(time_filter.timezone)
+            }
+            logger.info(f"评审今天的提交: {since.strftime('%Y-%m-%d %H:%M:%S')} ~ {until.strftime('%Y-%m-%d %H:%M:%S')}")
+        elif args.yesterday:
+            from src.utils.time_filter import TimeFilter
+            time_filter = TimeFilter(time_filter_config.get('timezone', 'Asia/Shanghai'))
+            since, until = time_filter.get_yesterday_range()
+            time_range = {
+                'enabled': True,
+                'since': since.isoformat(),
+                'until': until.isoformat(),
+                'timezone': str(time_filter.timezone)
+            }
+            logger.info(f"评审昨天的提交: {since.strftime('%Y-%m-%d %H:%M:%S')} ~ {until.strftime('%Y-%m-%d %H:%M:%S')}")
+        elif args.last_n_days:
+            from src.utils.time_filter import TimeFilter
+            time_filter = TimeFilter(time_filter_config.get('timezone', 'Asia/Shanghai'))
+            since, until = time_filter.get_last_n_days_range(args.last_n_days)
+            time_range = {
+                'enabled': True,
+                'since': since.isoformat(),
+                'until': until.isoformat(),
+                'timezone': str(time_filter.timezone)
+            }
+            logger.info(f"评审最近{args.last_n_days}天的提交: {since.strftime('%Y-%m-%d %H:%M:%S')} ~ {until.strftime('%Y-%m-%d %H:%M:%S')}")
+        elif args.since:
+            from src.utils.time_filter import TimeFilter
+            time_filter = TimeFilter(time_filter_config.get('timezone', 'Asia/Shanghai'))
+            since, until = time_filter.get_custom_range(args.since, args.until)
+            time_range = {
+                'enabled': True,
+                'since': since.isoformat(),
+                'until': until.isoformat(),
+                'timezone': str(time_filter.timezone)
+            }
+            logger.info(f"评审自定义时间范围的提交: {since.strftime('%Y-%m-%d %H:%M:%S')} ~ {until.strftime('%Y-%m-%d %H:%M:%S')}")
+        elif time_filter_config.get('enabled', False):
+            # 使用配置文件中的时间过滤
+            from src.utils.time_filter import TimeFilter
+            time_filter = TimeFilter(time_filter_config.get('timezone', 'Asia/Shanghai'))
+            mode = time_filter_config.get('mode', 'today')
+            since, until = time_filter.get_time_range(
+                mode,
+                last_n_days=time_filter_config.get('last_n_days', 1),
+                since=time_filter_config.get('since'),
+                until=time_filter_config.get('until')
+            )
+            time_range = {
+                'enabled': True,
+                'since': since.isoformat(),
+                'until': until.isoformat(),
+                'timezone': str(time_filter.timezone)
+            }
+            logger.info(f"启用配置文件中的时间过滤 ({mode}): {since.strftime('%Y-%m-%d %H:%M:%S')} ~ {until.strftime('%Y-%m-%d %H:%M:%S')}")
+        
         review_engine = ReviewEngine(
             gitlab_client=gitlab_client,
             llm_client=llm_client,
@@ -253,7 +334,7 @@ def main():
         logger.info("=" * 60)
         logger.info("开始代码评审...")
         logger.info("=" * 60)
-        review_data = review_engine.review_branches(source_branch, target_branch)
+        review_data = review_engine.review_branches(source_branch, target_branch, time_range)
         
         # 生成报告
         logger.info("=" * 60)
@@ -265,6 +346,24 @@ def main():
             format=report_format,
             group_by_author=group_by_author
         )
+        
+        # 保存到数据库（如果启用）
+        storage_config = config.get('storage', {})
+        if storage_config.get('enabled', False) and storage_config.get('auto_save', True):
+            try:
+                logger.info("保存评审结果到数据库...")
+                from src.storage.mysql_storage import MySQLStorage
+                
+                storage = MySQLStorage(storage_config)
+                # 添加project_id到metadata
+                review_data['metadata']['project_id'] = project_id
+                review_data['metadata']['project_name'] = project_name or ''
+                
+                review_id = storage.save_review_with_issues(review_data)
+                logger.info(f"评审结果已保存到数据库: {review_id}")
+            except Exception as e:
+                logger.warning(f"保存到数据库失败: {e}")
+                logger.warning("继续生成报告文件...")
         
         # 输出总结
         logger.info("="*70)

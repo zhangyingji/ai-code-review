@@ -245,13 +245,15 @@ class GitLabClient:
         logger.info(f"共找到 {len(diffs)} 个差异文件")
         return diffs
     
-    def get_commits_between_branches(self, source_branch: str, target_branch: str) -> List[Dict]:
+    def get_commits_between_branches(self, source_branch: str, target_branch: str, since: Optional[str] = None, until: Optional[str] = None) -> List[Dict]:
         """
         获取两个分支之间的提交记录
         
         Args:
             source_branch: 源分支
             target_branch: 目标分支
+            since: 起始时间（ISO 8601格式），可选
+            until: 结束时间（ISO 8601格式），可选
             
         Returns:
             提交记录列表
@@ -286,6 +288,122 @@ class GitLabClient:
             })
         
         return commits
+    
+    def get_commits_by_time_range(self, branch: str, since: str, until: Optional[str] = None) -> List[Dict]:
+        """
+        获取指定分支在时间范围内的提交记录
+        
+        Args:
+            branch: 分支名称
+            since: 起始时间（ISO 8601格式）
+            until: 结束时间（ISO 8601格式），可选，默认为当前时间
+            
+        Returns:
+            提交记录列表
+        """
+        logger.info(f"获取分支 {branch} 在时间范围内的提交: {since} ~ {until or 'now'}")
+        
+        # 构建查询参数
+        params = {
+            'ref_name': branch,
+            'since': since,
+            'all': True  # 获取所有提交
+        }
+        
+        if until:
+            params['until'] = until
+        
+        # 获取提交列表
+        commits_list = self.project.commits.list(**params)
+        
+        commits = []
+        for commit in commits_list:
+            # 获取详细的commit信息以获取modified_files
+            try:
+                commit_detail = self.project.commits.get(commit.id)
+                # 从 diff 中提取修改的文件列表
+                modified_files = []
+                if hasattr(commit_detail, 'diff'):
+                    for diff in commit_detail.diff(get_all=True):
+                        if 'new_path' in diff:
+                            modified_files.append(diff['new_path'])
+            except Exception as e:
+                logger.warning(f"无法获取commit {commit.id} 的详细信息: {e}")
+                modified_files = []
+            
+            commits.append({
+                'id': commit.id,
+                'short_id': commit.short_id,
+                'title': commit.title,
+                'message': commit.message,
+                'author_name': commit.author_name,
+                'author_email': commit.author_email,
+                'created_at': commit.created_at,
+                'modified_files': modified_files
+            })
+        
+        logger.info(f"找到 {len(commits)} 个提交")
+        return commits
+    
+    def get_diffs_for_commits(self, commits: List[Dict]) -> List[Dict]:
+        """
+        获取提交列表中所有涉及文件的差异
+        
+        Args:
+            commits: 提交记录列表
+            
+        Returns:
+            差异文件列表
+        """
+        logger.info(f"获取 {len(commits)} 个提交的文件差异")
+        
+        # 收集所有修改的文件
+        file_commits = {}  # file_path -> [commit_ids]
+        
+        for commit in commits:
+            for file_path in commit.get('modified_files', []):
+                if file_path not in file_commits:
+                    file_commits[file_path] = []
+                file_commits[file_path].append(commit['id'])
+        
+        # 获取每个文件的最新差异
+        diffs = []
+        for file_path, commit_ids in file_commits.items():
+            try:
+                # 使用最新的commit获取diff
+                latest_commit_id = commit_ids[0]
+                commit_detail = self.project.commits.get(latest_commit_id)
+                
+                # 查找该文件的diff
+                for diff in commit_detail.diff(get_all=True):
+                    if diff.get('new_path') == file_path:
+                        diff_info = {
+                            'file_path': diff['new_path'],
+                            'old_path': diff.get('old_path', diff['new_path']),
+                            'new_file': diff.get('new_file', False),
+                            'deleted_file': diff.get('deleted_file', False),
+                            'renamed_file': diff.get('renamed_file', False),
+                            'diff': diff.get('diff', ''),
+                            'additions': 0,
+                            'deletions': 0
+                        }
+                        
+                        # 统计增删行数
+                        if diff_info['diff']:
+                            for line in diff_info['diff'].split('\n'):
+                                if line.startswith('+') and not line.startswith('+++'):
+                                    diff_info['additions'] += 1
+                                elif line.startswith('-') and not line.startswith('---'):
+                                    diff_info['deletions'] += 1
+                        
+                        diffs.append(diff_info)
+                        break
+            except Exception as e:
+                logger.warning(f"无法获取文件 {file_path} 的差异: {e}")
+                continue
+        
+        logger.info(f"共找到 {len(diffs)} 个差异文件")
+        return diffs
     
     def get_file_content(self, file_path: str, ref: str) -> Optional[str]:
         """
