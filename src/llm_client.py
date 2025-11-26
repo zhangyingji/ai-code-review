@@ -149,52 +149,45 @@ class LLMClient:
         - minor: 次要个子 (代码风格不一致、命名不清晰等)
         - suggestion: 建议 (代码改进、最佳实践等)
         """
-        # 构建 prompt
+        # 构建 prompt - 强制要求纯 JSON 输出，禁止思考过程
         rules_text = "\n".join([f"- {rule}" for rule in rules])
         
-        prompt = f"""你是一个专业的代码评审专家。请对以下代码变更进行评审。
+        prompt = f"""指令：以下是代码评审任务。你必须ONLY输出JSON对象，不能有任何其他内容。
 
-文件路径: {file_path}
-
+文件: {file_path}
 代码差异:
-```diff
+```
 {code_diff}
 ```
 
-请根据以下评审规则进行检查:
+评审规则:
 {rules_text}
 
-=== 重要 ===
-你必须只返回有效的JSON格式,不要包含任何其他内容,包括思考过程、解释或markdown代码块。
-直接返回JSON对象,格式必须完全符合以下要求。
-
-请以纯JSON格式返回评审结果:
+输出JSON格式（绝对不修改，按这个格式输出）:
 {{
     "issues": [
         {{
             "severity": "critical/major/minor/suggestion",
-            "line": "具体行号或行号范围(如 42 或 42-58)",
-            "method": "涉及的方法名称(如 getUserInfo, render等,可选)",
+            "line": "行号",
+            "method": "方法",
             "category": "code_style/security/performance/best_practices",
-            "description": "问题描述",
-            "suggestion": "改进建议"
+            "description": "描述",
+            "suggestion": "建议"
         }}
     ],
-    "summary": "整体评价"
+    "summary": "总体评价"
 }}
 
-要求:
-1. 每个问题必须包含具体的行号(不能是'N/A'),格式为 '42' 或 '42-58'
-2. 对于前端/后端代码,尽量识别并填写涉及的方法/函数名称
-3. 如果没有发现问题,issues数组可以为空,但请给出正面的summary
-4. 必须严格遵守JSON格式,不要包含注释,不要有多余的逗号
-5. 所有字符串值必须用双引号包围,不要使用单引号
-6. description和suggestion中如果包含双引号,请使用转义 \\"
-7. 只返回JSON,不要有任何其他内容
-8. 确保JSON完整且格式正确,否则无法被系统处理"""
+绝对要求:
+1. 只输出JSON对象本身，不加任何前缀、后缀、解释
+2. 不使用<think>标签或任何思考过程标记
+3. 不加```
+4. JSON必须完全有效
+5. 所有字符串用双引号，不用单引号
+"""
 
         messages = [
-            {"role": "system", "content": "你是一个专业的代码评审专家,擅长发现代码中的问题并给出改进建议。"},
+            {"role": "system", "content": "你是代码评审工具。只输出JSON，不输出任何其他内容。"},
             {"role": "user", "content": prompt}
         ]
         
@@ -277,8 +270,13 @@ class LLMClient:
                             "summary": f"JSON解析错误: {str(json_error2)}. LLM返回格式不符合要求。请检查LLM的prompt或模型输出设置。"
                         }
             else:
-                logger.warning(f"未找到JSON格式，原始响应: {response[:500]}...")
-                result = {"issues": [], "summary": response}
+                logger.warning(f"未找到JSON格式")
+                logger.warning(f"原始响应长度: {len(response)} 字符")
+                logger.warning(f"原始响应: {response}")
+                logger.warning(f"清除后响应长度: {len(cleaned_response)} 字符")
+                logger.warning(f"清除后响应: {cleaned_response}")
+                # 尝试通过启发式方法提取信息
+                result = {"issues": [], "summary": "LLM 输出格式不符合要求，无法解析"}
             
             return result
         except Exception as e:
