@@ -259,23 +259,12 @@ class GitLabClient:
         """
         # 使用 repository_compare 获取两个分支之间的提交子集
         comparison = self.project.repository_compare(target_branch, source_branch)
+        logger.info(f"找到 {len(comparison['commits'])} 个提交记录")
         
         commits = []
+        # 性能优化：直接使用 comparison 中的提交信息，不再为每个提交单独获取diff
+        # modified_files 由 get_diff_between_branches 统一提供，在 review_engine 中建立映射
         for commit in comparison['commits']:
-            # 获取详细的commit信息以获取modified_files
-            try:
-                commit_detail = self.project.commits.get(commit['id'])
-                # 从 diff 中提取修改的文件列表
-                modified_files = []
-                if hasattr(commit_detail, 'diff'):
-                    # 添加 get_all=True 以获取所有diff项目
-                    for diff in commit_detail.diff(get_all=True):
-                        if 'new_path' in diff:
-                            modified_files.append(diff['new_path'])
-            except Exception as e:
-                logger.warning(f"无法获取commit {commit['id']} 的详细信息: {e}")
-                modified_files = []
-            
             commits.append({
                 'id': commit['id'],
                 'short_id': commit['short_id'],
@@ -284,9 +273,10 @@ class GitLabClient:
                 'author_name': commit['author_name'],
                 'author_email': commit['author_email'],
                 'created_at': commit['created_at'],
-                'modified_files': modified_files
+                'modified_files': []  # 性能优化：留空，由diffs统一提供
             })
         
+        logger.info(f"✔ direct模式: 完成了 {len(commits)} 个提交的处理")
         return commits
     
     def get_commits_between_branches_all(self, source_branch: str, target_branch: str, max_commits: int = 1000) -> List[Dict]:
