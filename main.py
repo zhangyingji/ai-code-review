@@ -237,6 +237,11 @@ def main():
         committer_filter_config = config.get('committer_filter', {})
         filter_authors = committer_filter_config.get('authors', [])
         
+        # 获取分支比较策略配置
+        branch_config = config.get('branch', {})
+        branch_strategy = branch_config.get('strategy', 'direct')
+        logger.info(f"分支比较策略: {branch_strategy}")
+        
         review_engine = ReviewEngine(
             gitlab_client=gitlab_client,
             llm_client=llm_client,
@@ -246,7 +251,8 @@ def main():
             enable_thinking=enable_thinking,
             ignore_extensions=ignore_extensions,
             ignore_dirs=ignore_dirs,
-            filter_authors=filter_authors
+            filter_authors=filter_authors,
+            branch_strategy=branch_strategy
         )
         
         # 执行评审

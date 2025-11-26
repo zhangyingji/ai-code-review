@@ -19,7 +19,8 @@ class ReviewEngine:
     def __init__(self, gitlab_client: GitLabClient, llm_client: LLMClient, 
                  review_rules: Dict, enable_concurrent: bool = True, max_workers: int = 3,
                  enable_thinking: bool = False, ignore_extensions: Optional[List[str]] = None,
-                 ignore_dirs: Optional[List[str]] = None, filter_authors: Optional[List[str]] = None):
+                 ignore_dirs: Optional[List[str]] = None, filter_authors: Optional[List[str]] = None,
+                 branch_strategy: str = 'direct'):
         """
         初始化评审引擎
         
@@ -33,13 +34,18 @@ class ReviewEngine:
             ignore_extensions: 忽略的文件扩展名列表
             ignore_dirs: 忽略的目录列表
             filter_authors: 提交人邮箱列表，为Empty时表示无限制
+            branch_strategy: 分支比较策略，可选值：
+                - 'direct': 仅比较两个分支之间的直接差异（默认，最快）
+                - 'all_commits': 获取所有提交记录及其差异（适合合并驱动的工作流，较慢）
         """
+        # ... existing code ...
         self.gitlab_client = gitlab_client
         self.llm_client = llm_client
         self.review_rules = review_rules
         self.enable_concurrent = enable_concurrent
         self.max_workers = max_workers
         self.enable_thinking = enable_thinking
+        self.branch_strategy = branch_strategy
         
         # 设置忽略列表，支持用户自定义
         self.ignore_extensions = ignore_extensions or [
@@ -207,8 +213,19 @@ class ReviewEngine:
         diffs = self.gitlab_client.get_diff_between_branches(review_branch, base_branch)
         logger.info(f"共有 {len(diffs)} 个文件发生变化")
         
-        # 获取提交记录
+        # 获取子分支上的提交记录
         commits = self.gitlab_client.get_commits_between_branches(review_branch, base_branch)
+        logger.info(f"使用分支策略 '{self.branch_strategy}' 获取提交记录")
+        
+        # 根据配置的分支比较策略选择不同的提交获取方法
+        if self.branch_strategy == 'all_commits':
+            logger.info(f"使用all_commits模式：获取两个分支之间的所有提交")
+            commits = self.gitlab_client.get_commits_between_branches_all(review_branch, base_branch)
+        else:
+            # direct 模式（默认）
+            logger.info(f"使用direct模式：仅比较两个分支之间的直接差异")
+            commits = self.gitlab_client.get_commits_between_branches(review_branch, base_branch)
+        
         logger.info(f"共有 {len(commits)} 个提交")
         
         # 根据配置对提交记录进行过滤

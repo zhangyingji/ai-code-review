@@ -22,6 +22,10 @@ gitlab:
 branch:
   review_branch: "feature/new-feature"  # 要评审的分支
   base_branch: "main"                   # 基准分支（必须指定）
+  # 分支比较策略
+  # - "direct": 仅比较两个分支之间的直接差异（默认，最快）
+  # - "all_commits": 获取并评审所有提交记录及其差异（适合合并驱动的工作流，较慢）
+  strategy: "direct"
 
 # 大模型配置
 llm:

@@ -289,6 +289,88 @@ class GitLabClient:
         
         return commits
     
+    def get_commits_between_branches_all(self, source_branch: str, target_branch: str, max_commits: int = 1000) -> List[Dict]:
+        """
+        获取两个分支之间的所有提交记录（使用提交歴史，不只是直接差异）
+        
+        注愋：一些合并提交可能不带diff信息，这种情况下需要不同的处理方式
+        
+        Args:
+            source_branch: 源分支
+            target_branch: 目标分支
+            max_commits: 最多获取的提交数（防止一次拉取太多）
+            
+        Returns:
+            提交记录列表
+        """
+        logger.info(f"正在使用 all_commits 模式获取提交记录（最多 {max_commits} 个）...")
+        logger.info(f"正在查询 merge_base，请稍候...")
+        
+        commits = []
+        try:
+            # 第一个方案：使用 merge_base 找到匹配点
+            # 根据匹配点获取两个分支之间所有提交
+            try:
+                logger.debug(f"正在调用 merge_bases({source_branch}, [{target_branch}])...")
+                merge_base = self.project.merge_bases(source_branch, [target_branch])[0]
+                merge_base_id = merge_base['id']
+                logger.info(f"找到合并基点: {merge_base_id[:8]}")
+                
+                # 获取从匹配点之后到source_branch的所有提交
+                logger.info(f"正在获取提交条件：{target_branch}...{source_branch}")
+                commits_list = self.project.commits.list(
+                    ref_name=source_branch,
+                    order_by='default',
+                    per_page=min(max_commits, 100),
+                    pagination=False,  # 不使用分页，一次拉取
+                    get_all=False
+                )
+                logger.info(f"找到 {len(commits_list)} 个提交记录（限于前 {max_commits} 个）")
+                
+                # 筛选提交（只要比匹配点更新的提交）
+                processed_count = 0
+                for commit_data in commits_list[:max_commits]:
+                    if commit_data.id == merge_base_id:
+                        logger.debug(f"已经做到匹配点，停止提取")
+                        break  # 已到匹配点，停止提取
+                    
+                    processed_count += 1
+                    logger.debug(f"正在处理提交 [{processed_count}/{len(commits_list)}]: {commit_data.short_id} - {commit_data.title[:60]}")
+                    
+                    try:
+                        commit_detail = self.project.commits.get(commit_data.id)
+                        modified_files = []
+                        if hasattr(commit_detail, 'diff'):
+                            for diff in commit_detail.diff(get_all=True):
+                                if 'new_path' in diff:
+                                    modified_files.append(diff['new_path'])
+                    except Exception as e:
+                        logger.warning(f"无法获取commit {commit_data.id} 的详细信息: {e}")
+                        modified_files = []
+                    
+                    commits.append({
+                        'id': commit_data.id,
+                        'short_id': commit_data.short_id,
+                        'title': commit_data.title,
+                        'message': commit_data.message,
+                        'author_name': commit_data.author_name,
+                        'author_email': commit_data.author_email,
+                        'created_at': commit_data.created_at,
+                        'modified_files': modified_files
+                    })
+                    
+                logger.info(f"✔ all_commits模式: 完成了 {len(commits)} 个提交的处理")
+            except Exception as e:
+                logger.warning(f"使用 merge_base 方法失败: {e}，回退使用直接比较方法")
+                # 回退认: 使用直接比较
+                return self.get_commits_between_branches(source_branch, target_branch)
+        except Exception as e:
+            logger.error(f"获取所有提交失败: {e}")
+            # 回退认: 使用直接比较
+            return self.get_commits_between_branches(source_branch, target_branch)
+        
+        return commits
+    
     def get_file_content(self, file_path: str, ref: str) -> Optional[str]:
         """
         获取指定版本的文件内容
