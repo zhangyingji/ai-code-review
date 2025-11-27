@@ -106,7 +106,7 @@ review_rules:
 # 报告配置
 report:
   output_dir: "./reports"  # 报告输出目录
-  format: "html"           # 可选: html, excel, markdown, json
+  format: "html"           # 可选: html, excel
   group_by_author: true    # 是否按作者分组
   include_code_snippet: true  # 是否包含代码段落
 
