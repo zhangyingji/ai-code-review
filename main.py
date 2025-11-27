@@ -214,13 +214,18 @@ def main():
         api_key = llm_config.pop('api_key')
         model = llm_config.pop('model')
         enable_thinking = llm_config.pop('enable_thinking', False)
+        
+        # 获取严重程度定义配置
+        severity_definitions = config.get('severity_definitions', {})
+        
         llm_client = LLMClient(
             api_url=api_url,
             api_key=api_key,
             model=model,
             temperature=llm_config.get('temperature', 0.3),
             max_tokens=llm_config.get('max_tokens', 2000),
-            enable_thinking=enable_thinking
+            enable_thinking=enable_thinking,
+            severity_definitions=severity_definitions
         )
         
         # 获取性能配置

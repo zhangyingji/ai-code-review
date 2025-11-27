@@ -110,6 +110,47 @@ report:
   group_by_author: true    # 是否按作者分组
   include_code_snippet: true  # 是否包含代码段落
 
+# 严重程度定义 - 提供了默认分类标准，你可以根据些熵需求修改
+severity_definitions:
+  # critical：严重问题，影响系统安全性或数据完整性
+  critical:
+    name: "严重"
+    description: "严重问题，影响系统安全性或数据完整性"
+    examples:
+      - "SQL注入、XSS漏洞等安全漏洞"
+      - "内存泄漏、数据丢失、资源泄露"
+      - "逻辑错误导致功能完全不可用"
+      - "竞态条件导致数据不一致"
+  
+  # major：主要问题，影响功能正确性或性能
+  major:
+    name: "主要"
+    description: "主要问题，影响功能正确性或性能"
+    examples:
+      - "缺少必要的错误处理"
+      - "性能瓶颈（复杂度过高、数据库查询优化不足）"
+      - "业务逻辑错误导致功能异常"
+      - "死锁或无限循环风险"
+  
+  # minor：次要问题，影响代码质量但不影响功能
+  minor:
+    name: "次要"
+    description: "次要问题，影响代码质量但不影响功能"
+    examples:
+      - "代码风格不一致"
+      - "命名不清晰或不符合规范"
+      - "代码重复、可读性不足"
+      - "注释缺失或不完善"
+  
+  # suggestion：建议，代码改进和最佳实践
+  suggestion:
+    name: "建议"
+    description: "建议，代码改进和最佳实践"
+    examples:
+      - "可以优化的代码模式"
+      - "遵循最佳实践的建议"
+      - "代码结构改进建议"
+
 # 文件筛选配置 - 可以自定义忽略的文件类型和目录
 file_filter:
   # 忽略的文件扩展名列表

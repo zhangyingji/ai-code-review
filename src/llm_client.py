@@ -19,7 +19,8 @@ class LLMClient:
     """大模型客户端，支持所有 OpenAI 兼容格式的 API"""
     
     def __init__(self, api_url: str, api_key: str, model: str, 
-                 temperature: float = 0.3, max_tokens: int = 2000, enable_thinking: bool = False):
+                 temperature: float = 0.3, max_tokens: int = 2000, enable_thinking: bool = False,
+                 severity_definitions: Optional[Dict] = None):
         """
         初始化大模型客户端
         
@@ -31,6 +32,7 @@ class LLMClient:
             temperature: 温度参数 (0.0-2.0)
             max_tokens: 最大生成 token 数
             enable_thinking: 是否启用深度思考模式
+            severity_definitions: 严重程度定义，从配置文件中传入
         """
         self.api_url = api_url.rstrip('/')
         self.api_key = api_key
@@ -38,6 +40,7 @@ class LLMClient:
         self.temperature = temperature
         self.max_tokens = max_tokens
         self.enable_thinking = enable_thinking
+        self.severity_definitions = severity_definitions or {}
         
         logger.info(f"初始化大模型客户端")
         logger.info(f"  API URL: {self.api_url}")
@@ -142,17 +145,16 @@ class LLMClient:
             
         Returns:
             评审结果（包含 issues 数组和 summary 字符串）
-            
-        问题严重程度定义 (severity)：
-        - critical: 严重个子 (SQL注入、内存泄漏、数据丢失等安全问题)
-        - major: 主要个子 (丢失錯误处理、性能瓶颈、逻辑错误等)
-        - minor: 次要个子 (代码风格不一致、命名不清晰等)
-        - suggestion: 建议 (代码改进、最佳实践等)
         """
-        # 构建 prompt - 强制要求纯 JSON 输出，禁止思考过程
+        # 构建严重程度定义描述 - 使用配置改云或默认值
+        severity_descriptions = self._build_severity_definitions()
+        
+        # 构建 prompt - 强制要求纯 JSON 输出，禁止思考过程，强制中文输出
         rules_text = "\n".join([f"- {rule}" for rule in rules])
         
         prompt = f"""指令：以下是代码评审任务。你必须ONLY输出JSON对象，不能有任何其他内容。
+
+{severity_descriptions}
 
 文件: {file_path}
 代码差异:
@@ -163,6 +165,8 @@ class LLMClient:
 评审规则:
 {rules_text}
 
+【重要提示】在应用以上规则时，必须始终使用上述严重程度定义进行分类，确保相同类型的问题被标记为相同的严重程度。
+
 输出JSON格式（绝对不修改，按这个格式输出）:
 {{
     "issues": [
@@ -171,11 +175,11 @@ class LLMClient:
             "line": "行号",
             "method": "方法",
             "category": "code_style/security/performance/best_practices",
-            "description": "描述",
-            "suggestion": "建议"
+            "description": "描述(必须用中文，不允许英文)",
+            "suggestion": "建议(必须用中文，不允许英文)"
         }}
     ],
-    "summary": "总体评价"
+    "summary": "总体评价(必须用中文，不允许英文)"
 }}
 
 绝对要求:
@@ -184,10 +188,15 @@ class LLMClient:
 3. 不加```
 4. JSON必须完全有效
 5. 所有字符串用双引号，不用单引号
+6. 【重要】所有返回的文字内容（description、suggestion、summary）必须ONLY用中文，严禁使用英文
+7. 【重要】即使用户提供的规则中有英文，你的回复也必须翻译成中文
+8. 【关键】severity分类必须严格遵循上述定义，对相同类型的问题必须给出一致的严重程度判定
+9. 【关键】优先按照问题的影响范围判断严重程度：安全性/数据完整性 > 功能正确性/性能 > 代码质量 > 最佳实践
+10. 【关键】对于边界情况，倾向于选择更严格的分类（即更高的严重程度）以保证代码质量
 """
 
         messages = [
-            {"role": "system", "content": "你是代码评审工具。只输出JSON，不输出任何其他内容。"},
+            {"role": "system", "content": "你是代码评审工具。你必须只输出JSON格式。所有返回内容必须使用中文，不允许使用英文。"},
             {"role": "user", "content": prompt}
         ]
         
@@ -235,7 +244,7 @@ class LLMClient:
                 json_str = re.sub(r',\s*([}\]])', r'\1', json_str)
                 # 2. 将单引号改为双引号 (只在键名和字符串值中)
                 # 注意:这可能不完美,但可以处理大部分情况
-                json_str = json_str.replace("\'", '"')
+                json_str = json_str.replace("\'", '\\"')
                 # 3. 修复缺少逗号的问题（在相邻的对象/数组之间）
                 # 例如：}\n{ 应该是},\n{
                 json_str = re.sub(r'(\})\s*(["\{])', r'\1,\2', json_str)
@@ -285,3 +294,54 @@ class LLMClient:
                 "issues": [],
                 "summary": f"评审失败: {str(e)}"
             }
+    
+    def _build_severity_definitions(self) -> str:
+        """
+        构建严重程度定义描述文本
+        返回帧形待添加的文本
+        """
+        if not self.severity_definitions:
+            # 使用默认定义
+            return self._get_default_severity_definitions()
+        
+        # 从配置中构建
+        result = "问题严重程度定义 (severity) - 严格遵循以下标准进行分类：\n"
+        
+        for severity_level in ['critical', 'major', 'minor', 'suggestion']:
+            if severity_level in self.severity_definitions:
+                config = self.severity_definitions[severity_level]
+                result += f"- {severity_level}: {config.get('description', '')}\n"
+                
+                # 添加例子
+                examples = config.get('examples', [])
+                if examples:
+                    for example in examples:
+                        result += f"  * {example}\n"
+        
+        return result
+    
+    def _get_default_severity_definitions(self) -> str:
+        """
+        返回默认的严重程度定义
+        """
+        return """问题严重程度定义 (severity) - 严格遵循以下标准进行分类：
+- critical: 严重问题，影响系统安全性或数据完整性
+  * SQL注入、XSS漏洞等安全漏洞
+  * 内存泄漏、数据丢失、资源泄露
+  * 逻辑错误导致功能完全不可用
+  * 竞态条件导致数据不一致
+- major: 主要问题，影响功能正确性或性能
+  * 缺少必要的错误处理
+  * 性能瓶颈（复杂度过高、数据库查询优化不足）
+  * 业务逻辑错误导致功能异常
+  * 死锁或无限循环风险
+- minor: 次要问题，影响代码质量但不影响功能
+  * 代码风格不一致
+  * 命名不清晰或不符合规范
+  * 代码重复、可读性不足
+  * 注释缺失或不完善
+- suggestion: 建议，代码改进和最佳实践
+  * 可以优化的代码模式
+  * 遵循最佳实践的建议
+  * 代码结构改进建议"""
+        
