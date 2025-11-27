@@ -7,6 +7,8 @@ from typing import List, Dict, Optional
 import logging
 import requests
 import urllib3
+import json
+import re
 
 # 禁用 HTTPS 证书验证警告
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -200,8 +202,6 @@ class LLMClient:
         try:
             response = self.chat(messages)
             # 提取JSON部分
-            import json
-            import re
             
             # 移除think标签或思考段落（处理启用深度思考时的输出）
             cleaned_response = response

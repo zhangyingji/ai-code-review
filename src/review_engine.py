@@ -345,15 +345,15 @@ class ReviewEngine:
                     if result:
                         file_reviews.append(result)
                         issue_count = len(result.get('issues', []))
-                        logger.debug(f"[並发-{completed_count}/{len(diffs)}] 成功评审 {result.get('file_path')} (列题数: {issue_count})")
+                        logger.debug(f"[并发-{completed_count}/{len(diffs)}] 成功评审 {result.get('file_path')} (问题数: {issue_count})")
                     else:
-                        logger.debug(f"[並发-{completed_count}/{len(diffs)}] 跳过 {future_to_diff[future].get('file_path')}")
+                        logger.debug(f"[并发-{completed_count}/{len(diffs)}] 跳过 {future_to_diff[future].get('file_path')}")
                 except Exception as e:
                     completed_count += 1
                     diff = future_to_diff[future]
-                    logger.error(f"[並发-{completed_count}/{len(diffs)}] 评审 {diff.get('file_path')} 失败: {e}")
+                    logger.error(f"[并发-{completed_count}/{len(diffs)}] 评审 {diff.get('file_path')} 失败: {e}")
         
-        logger.info(f"並发评审完成: {completed_count}/{len(diffs)} 个文件, 发现 {sum(len(r.get('issues', [])) for r in file_reviews)} 个问题")
+        logger.info(f"并发评审完成: {completed_count}/{len(diffs)} 个文件, 发现 {sum(len(r.get('issues', [])) for r in file_reviews)} 个问题")
         return file_reviews
     
     def _group_by_author(self, commits: List[Dict], file_reviews: List[Dict]) -> List[Dict]:

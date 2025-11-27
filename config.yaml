@@ -110,7 +110,7 @@ report:
   group_by_author: true    # 是否按作者分组
   include_code_snippet: true  # 是否包含代码段落
 
-# 严重程度定义 - 提供了默认分类标准，你可以根据些熵需求修改
+# 严重程度定义 - 提供了默认分类标准，你可以根据需求修改
 severity_definitions:
   # critical：严重问题，影响系统安全性或数据完整性
   critical:
