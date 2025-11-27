@@ -85,7 +85,8 @@ def get_html_template() -> str:
         <!-- 隐藏的原始数据 - 用于JavaScript渲染 -->
         <script type="application/json" id="all-issues-data">
         {% set all_issues = [] %}
-        {# 从author_stats收集问题 #}
+        {# 从所有来源收集问题 #}
+        {# 优先从 author_stats 收集，然后书书不足的部分从 file_reviews 补充 #}
         {% if review_data.author_stats %}
             {% for author in review_data.author_stats %}
                 {% for issue in author.issues %}
@@ -93,17 +94,15 @@ def get_html_template() -> str:
                 {% endfor %}
             {% endfor %}
         {% endif %}
-        {# 如果author_stats为空，从file_reviews收集问题 #}
-        {% if all_issues|length == 0 %}
+        {# 如果还是没有收集到提供人信息，从 file_reviews 直接补充 #}
+        {% if all_issues|length == 0 and review_data.file_reviews %}
             {% for file_review in review_data.file_reviews %}
                 {% for issue in file_review.issues %}
-                    {% set issue_with_file = issue.copy() if issue.copy else issue %}
-                    {% if issue.copy %}
-                        {% set _ = issue_with_file.update({'file_path': file_review.file_path}) %}
-                    {% else %}
-                        {% set issue_with_file = dict(issue, file_path=file_review.file_path) %}
+                    {% set issue_with_context = dict(issue) %}
+                    {% if 'file_path' not in issue_with_context %}
+                        {% set _ = issue_with_context.update({'file_path': file_review.file_path}) %}
                     {% endif %}
-                    {% set _ = all_issues.append(issue_with_file) %}
+                    {% set _ = all_issues.append(issue_with_context) %}
                 {% endfor %}
             {% endfor %}
         {% endif %}
@@ -341,9 +340,9 @@ def get_scripts() -> str:
             </div>
             
             <div class="problem-location">
-                ${filePath ? `<div><strong>📄 文件:</strong> ${filePath}</div>` : ''}
+                ${filePath && filePath !== 'Unknown' ? `<div><strong>📄 文件:</strong> ${filePath}</div>` : ''}
                 ${method ? `<div><strong>🔍 方法:</strong> <code>${method}</code></div>` : ''}
-                ${line ? `<div><strong>📍 位置:</strong> 第 ${line} 行</div>` : ''}
+                ${line ? `<div><strong>📑 位置:</strong> 第 ${line} 行</div>` : ''}
             </div>
             
             <div class="problem-description">
@@ -368,14 +367,20 @@ def get_scripts() -> str:
                 <div class="code-snippet-content collapsed">`;
             
             if (snippet.lines && Array.isArray(snippet.lines)) {
-                snippet.lines.forEach(line => {
-                    const type = line.type || '';
-                    const inRange = line.in_range ? 'in-range' : '';
-                    const lineNum = line.line_num || '';
-                    const content = line.content || '';
+                snippet.lines.forEach(lineObj => {
+                    const type = lineObj.type || '';
+                    const inRange = lineObj.in_range ? 'in-range' : '';
+                    const lineNum = lineObj.line_num || '';
+                    const content = lineObj.content || '';
+                    // 需要转义HTML特殊字符
+                    const escapedContent = content.replace(/&/g, '&amp;')
+                        .replace(/</g, '&lt;')
+                        .replace(/>/g, '&gt;')
+                        .replace(/"/g, '&quot;')
+                        .replace(/'/g, '&#39;');
                     html += `<div class="code-line ${type} ${inRange}">
                         <div class="code-line-num">${lineNum}</div>
-                        <div class="code-line-content">${content}</div>
+                        <div class="code-line-content"><pre>${escapedContent}</pre></div>
                     </div>`;
                 });
             }

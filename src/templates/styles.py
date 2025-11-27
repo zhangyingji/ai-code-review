@@ -31,7 +31,7 @@ def get_css_styles() -> str:
     
     /* 问题卡片 */
     .issues-list { margin-top: 20px; }
-    .problem-card { background: #fff; border: 1px solid #e1e4e8; border-radius: 6px; padding: 15px; margin-bottom: 15px; display: none; }
+    .problem-card { background: #fff; border: 1px solid #e1e4e8; border-radius: 6px; padding: 15px; margin-bottom: 15px; display: block; }
     .problem-card.show { display: block; }
     
     .problem-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid #e1e4e8; }
