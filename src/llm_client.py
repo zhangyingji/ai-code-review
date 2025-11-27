@@ -146,13 +146,13 @@ class LLMClient:
         Returns:
             评审结果（包含 issues 数组和 summary 字符串）
         """
-        # 构建严重程度定义描述 - 使用配置改云或默认值
+        # 构建严重程度定义描述 - 使用配置或默认值
         severity_descriptions = self._build_severity_definitions()
         
-        # 构建 prompt - 强制要求纯 JSON 输出，禁止思考过程，强制中文输出
+        # 构建 prompt
         rules_text = "\n".join([f"- {rule}" for rule in rules])
         
-        prompt = f"""指令：以下是代码评审任务。你必须ONLY输出JSON对象，不能有任何其他内容。
+        prompt = f"""你是专业的代码评审专家。根据以下信息对代码进行评审。
 
 {severity_descriptions}
 
@@ -165,38 +165,31 @@ class LLMClient:
 评审规则:
 {rules_text}
 
-【重要提示】在应用以上规则时，必须始终使用上述严重程度定义进行分类，确保相同类型的问题被标记为相同的严重程度。
-
-输出JSON格式（绝对不修改，按这个格式输出）:
+请输出以下JSON格式的评审结果（仅输出JSON，无其他内容）:
 {{
     "issues": [
         {{
             "severity": "critical/major/minor/suggestion",
             "line": "行号",
             "method": "方法",
-            "category": "code_style/security/performance/best_practices",
-            "description": "描述(必须用中文，不允许英文)",
-            "suggestion": "建议(必须用中文，不允许英文)"
+            "category": "问题类别",
+            "description": "问题描述",
+            "suggestion": "改进建议"
         }}
     ],
-    "summary": "总体评价(必须用中文，不允许英文)"
+    "summary": "总体评价"
 }}
 
-绝对要求:
-1. 只输出JSON对象本身，不加任何前缀、后缀、解释
-2. 不使用<think>标签或任何思考过程标记
-3. 不加```
-4. JSON必须完全有效
-5. 所有字符串用双引号，不用单引号
-6. 【重要】所有返回的文字内容（description、suggestion、summary）必须ONLY用中文，严禁使用英文
-7. 【重要】即使用户提供的规则中有英文，你的回复也必须翻译成中文
-8. 【关键】severity分类必须严格遵循上述定义，对相同类型的问题必须给出一致的严重程度判定
-9. 【关键】优先按照问题的影响范围判断严重程度：安全性/数据完整性 > 功能正确性/性能 > 代码质量 > 最佳实践
-10. 【关键】对于边界情况，倾向于选择更严格的分类（即更高的严重程度）以保证代码质量
+【必须遵循的要求】
+1. 严格按照上述JSON格式输出，不加任何前缀/后缀
+2. severity分类必须严格遵循定义，相同类型问题给出一致的严重程度
+3. 优先按影响范围判断：安全性/数据完整性 > 功能正确性/性能 > 代码质量 > 最佳实践
+4. 所有文字内容必须使用中文（description/suggestion/summary）
+5. 不使用<think>标签或任何思考过程标记
 """
 
         messages = [
-            {"role": "system", "content": "你是代码评审工具。你必须只输出JSON格式。所有返回内容必须使用中文，不允许使用英文。"},
+            {"role": "system", "content": "你是代码评审专家。只输出JSON格式的结果，所有内容必须使用中文。"},
             {"role": "user", "content": prompt}
         ]
         
@@ -239,52 +232,33 @@ class LLMClient:
             if json_match:
                 json_str = json_match.group()
                 
-                # 尝试修复常见的JSON错误
-                # 1. 移除尾随逗号 (trailing comma)
-                json_str = re.sub(r',\s*([}\]])', r'\1', json_str)
-                # 2. 将单引号改为双引号 (只在键名和字符串值中)
-                # 注意:这可能不完美,但可以处理大部分情况
-                json_str = json_str.replace("\'", '\\"')
-                # 3. 修复缺少逗号的问题（在相邻的对象/数组之间）
-                # 例如：}\n{ 应该是},\n{
-                json_str = re.sub(r'(\})\s*(["\{])', r'\1,\2', json_str)
-                # 4. 修复数组元素之间缺少逗号的问题
-                # 检查 JSON 结构中可能缺少逗号的地方
-                json_str = re.sub(r'(")}\s*(["\{])', r'\1}},\2', json_str)
+                # 修复常见的JSON错误
+                json_str = self._fix_json_errors(json_str)
                 
                 try:
                     result = json.loads(json_str)
                     logger.debug(f"JSON解析成功，问题数量: {len(result.get('issues', []))}")
                 except json.JSONDecodeError as json_error:
-                    # JSON解析失败，尝试更激进的修复
+                    # JSON解析失败，尝试激进修复
                     logger.debug(f"首次JSON解析失败，尝试激进修复: {json_error}")
-                    
-                    # 尝试修复：为缺少的对象属性添加逗号
-                    # 匹配模式："key": "value"\n"key": 应该变成 "key": "value",\n"key":
-                    json_str = re.sub(r'("\s*:\s*[^,}\]\n]*)(\s*")', r'\1,\2', json_str)
+                    json_str = self._fix_json_errors(json_str, aggressive=True)
                     
                     try:
                         result = json.loads(json_str)
                         logger.debug(f"激进修复JSON解析成功")
                     except json.JSONDecodeError as json_error2:
-                        # 记录详细信息
-                        logger.error(f"JSON解析失败: {json_error2}")
+                        # 记录详细信息并返回错误
+                        logger.error(f"JSON解析最终失败: {json_error2}")
                         logger.error(f"LLM原始响应: {response[:1000]}...")
-                        logger.error(f"清除后的响应: {cleaned_response[:1000]}...")
-                        logger.error(f"提取的JSON字符串: {json_str[:1000]}...")
+                        logger.error(f"提取的JSON: {json_str[:1000]}...")
                         
-                        # 返回空结果,但在summary中说明问题
                         result = {
                             "issues": [], 
-                            "summary": f"JSON解析错误: {str(json_error2)}. LLM返回格式不符合要求。请检查LLM的prompt或模型输出设置。"
+                            "summary": f"JSON解析错误: {str(json_error2)}. LLM返回格式不符合要求。"
                         }
             else:
-                logger.warning(f"未找到JSON格式")
-                logger.warning(f"原始响应长度: {len(response)} 字符")
-                logger.warning(f"原始响应: {response}")
-                logger.warning(f"清除后响应长度: {len(cleaned_response)} 字符")
-                logger.warning(f"清除后响应: {cleaned_response}")
-                # 尝试通过启发式方法提取信息
+                logger.warning(f"未找JSON格式 (response: {len(response)} chars)")
+                logger.warning(f"\u5185容\uff1a{response[:500]}...")
                 result = {"issues": [], "summary": "LLM 输出格式不符合要求，无法解析"}
             
             return result
@@ -294,6 +268,29 @@ class LLMClient:
                 "issues": [],
                 "summary": f"评审失败: {str(e)}"
             }
+    
+    def _fix_json_errors(self, json_str: str, aggressive: bool = False) -> str:
+        """
+        修复JSON字符串中的常见错误
+        
+        Args:
+            json_str: 需要修复的JSON字符串
+            aggressive: 是否使用激进修复路略
+            
+        Returns:
+            修复后的JSON字符串
+        """
+        # 基础修复: 移除尾随逗号、单引号等
+        json_str = re.sub(r',\s*([}\]])', r'\1', json_str)  # 移除尾随逗号
+        json_str = json_str.replace("\'", '\\"')  # 单引号改双引号
+        json_str = re.sub(r'(\})\s*(["{\[])', r'\1,\2', json_str)  # 补充对象间逗号
+        
+        if aggressive:
+            # 激进修复: 为属性值创需要的逗号
+            # 匹配模式: "key": "value"\n"key" 应该变成 "key": "value",\n"key"
+            json_str = re.sub(r'("\s*:\s*[^,}\]\n]*)(\s*")', r'\1,\2', json_str)
+        
+        return json_str
     
     def _build_severity_definitions(self) -> str:
         """

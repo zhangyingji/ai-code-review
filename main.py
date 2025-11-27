@@ -30,9 +30,9 @@ def setup_logging(config: Dict) -> str:
     log_level = getattr(logging, log_config.get('level', 'INFO').upper())
     console_output = log_config.get('console_output', True)
     
-    # 创建日志格式
+    # 有线程名称的日志格式
     formatter = logging.Formatter(
-        '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        '[%(asctime)s] [%(levelname)-8s] [%(threadName)-12s] [%(name)s] %(message)s',
         datefmt='%Y-%m-%d %H:%M:%S'
     )
     

@@ -55,7 +55,7 @@ demo_*.md
 
 # Test scripts (演示和验证用的临时脚本)
 demo_report.py
-generate_demo_new.py
+generate_demo_html.py
 test_refactored.py
 simple_html_template.py
 
