@@ -21,8 +21,8 @@ def get_html_template() -> str:
         
         <!-- 基本元数据 -->
         <div class="metadata">
-            <div class="metadata-item"><span class="metadata-label">源分支:</span> {{ review_data.metadata.source_branch }}</div>
-            <div class="metadata-item"><span class="metadata-label">目标分支:</span> {{ review_data.metadata.target_branch }}</div>
+            <div class="metadata-item"><span class="metadata-label">评审分支:</span> {{ review_data.metadata.source_branch }}</div>
+            <div class="metadata-item"><span class="metadata-label">基准分支:</span> {{ review_data.metadata.target_branch }}</div>
             <div class="metadata-item"><span class="metadata-label">评审时间:</span> {{ review_data.metadata.review_time }}</div>
             <div class="metadata-item"><span class="metadata-label">评审耗时:</span> {{ "%.2f"|format(review_data.metadata.duration_seconds) }} 秒</div>
         </div>
@@ -85,16 +85,21 @@ def get_html_template() -> str:
         <!-- 隐藏的原始数据 - 用于JavaScript渲染 -->
         <script type="application/json" id="all-issues-data">
         {% set all_issues = [] %}
-        {# 从所有来源收集问题 #}
-        {# 优先从 author_stats 收集，然后书书不足的部分从 file_reviews 补充 #}
+        {% set seen_issues = [] %}
+        {# 优先从 author_stats 收集问题（包含完整的作者信息）#}
         {% if review_data.author_stats %}
             {% for author in review_data.author_stats %}
                 {% for issue in author.issues %}
-                    {% set _ = all_issues.append(issue) %}
+                    {# 使用文件路径+行号+描述作为唯一标识 #}
+                    {% set issue_key = (issue.file_path or '') ~ '_' ~ (issue.line or '') ~ '_' ~ (issue.description or '') %}
+                    {% if issue_key not in seen_issues %}
+                        {% set _ = all_issues.append(issue) %}
+                        {% set _ = seen_issues.append(issue_key) %}
+                    {% endif %}
                 {% endfor %}
             {% endfor %}
         {% endif %}
-        {# 如果还是没有收集到提供人信息，从 file_reviews 直接补充 #}
+        {# 如果没有收集到问题，从 file_reviews 补充 #}
         {% if all_issues|length == 0 and review_data.file_reviews %}
             {% for file_review in review_data.file_reviews %}
                 {% for issue in file_review.issues %}
@@ -102,7 +107,11 @@ def get_html_template() -> str:
                     {% if 'file_path' not in issue_with_context %}
                         {% set _ = issue_with_context.update({'file_path': file_review.file_path}) %}
                     {% endif %}
-                    {% set _ = all_issues.append(issue_with_context) %}
+                    {% set issue_key = (issue_with_context.file_path or '') ~ '_' ~ (issue_with_context.line or '') ~ '_' ~ (issue_with_context.description or '') %}
+                    {% if issue_key not in seen_issues %}
+                        {% set _ = all_issues.append(issue_with_context) %}
+                        {% set _ = seen_issues.append(issue_key) %}
+                    {% endif %}
                 {% endfor %}
             {% endfor %}
         {% endif %}
@@ -392,10 +401,36 @@ def get_scripts() -> str:
         return html;
     }
     
-    // 按严重程度筛选（用于兼容性）
+    // 按严重程度筛选
     function filterBySeverity(severity) {
-        // 这个函数现在已经不需要了，因为数据是由JavaScript动态渲染的
-        // 保留这个函数以便兼容任何可能的调用
+        const container = document.getElementById('severity-issues');
+        const severityGroups = container.querySelectorAll('.severity-group');
+            
+        // 如果点击的是当前激活的筛选项，则取消筛选显示全部
+        const filterItems = document.querySelectorAll('.filter-item');
+        const currentFilter = document.querySelector('.filter-item.active');
+        const clickedFilter = document.querySelector(`.filter-item[data-severity="${severity}"]`);
+            
+        if (currentFilter === clickedFilter) {
+            // 取消筛选，显示所有
+            severityGroups.forEach(group => {
+                group.style.display = 'block';
+            });
+            clickedFilter.classList.remove('active');
+        } else {
+            // 应用筛选
+            severityGroups.forEach(group => {
+                if (group.getAttribute('data-severity') === severity) {
+                    group.style.display = 'block';
+                } else {
+                    group.style.display = 'none';
+                }
+            });
+                
+            // 更新激活状态
+            filterItems.forEach(item => item.classList.remove('active'));
+            clickedFilter.classList.add('active');
+        }
     }
 </script>"""
 
