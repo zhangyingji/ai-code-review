@@ -90,10 +90,6 @@ class ExcelFormatter(BaseFormatter):
                                   critical_fill, major_fill, minor_fill,
                                   center_align, left_align, border)
         
-        # 创建文件评审页
-        self._create_files_sheet(wb, review_data, header_fill, header_font,
-                                center_align, left_align, border)
-        
         # 保存文件
         wb.save(filepath)  # type: ignore
         
@@ -114,8 +110,8 @@ class ExcelFormatter(BaseFormatter):
         # 基本信息
         metadata = review_data['metadata']
         info_items = [
-            ("源分支", metadata['source_branch']),
-            ("目标分支", metadata['target_branch']),
+            ("评审分支", metadata['source_branch']),
+            ("基准分支", metadata['target_branch']),
             ("评审时间", metadata['review_time']),
             ("评审耗时", f"{metadata['duration_seconds']:.2f} 秒"),
             ("提交数量", str(metadata['total_commits'])),
@@ -161,11 +157,12 @@ class ExcelFormatter(BaseFormatter):
         ws_issues.column_dimensions['B'].width = 30
         ws_issues.column_dimensions['C'].width = 15
         ws_issues.column_dimensions['D'].width = 15
-        ws_issues.column_dimensions['E'].width = 50
-        ws_issues.column_dimensions['F'].width = 50
+        ws_issues.column_dimensions['E'].width = 40
+        ws_issues.column_dimensions['F'].width = 60
+        ws_issues.column_dimensions['G'].width = 50
         
         # 表头
-        headers = ["严重程度", "文件", "行号", "方法", "问题描述", "改进建议"]
+        headers = ["严重程度", "文件", "行号", "方法", "问题描述", "改进建议", "问题代码"]
         for col, header in enumerate(headers, 1):
             cell = ws_issues.cell(row=1, column=col)
             cell.value = header
@@ -198,8 +195,24 @@ class ExcelFormatter(BaseFormatter):
             ws_issues.cell(row=row, column=5).value = issue.get('description', '')
             ws_issues.cell(row=row, column=6).value = issue.get('suggestion', '')
             
+            # 提取代码段落
+            code_snippet_text = ''
+            if issue.get('code_snippet'):
+                snippet = issue['code_snippet']
+                lines = snippet.get('lines', [])
+                if lines:
+                    code_lines = []
+                    for line_obj in lines:
+                        line_num = line_obj.get('line_num', '')
+                        content = line_obj.get('content', '')
+                        prefix = '+' if line_obj.get('type') == 'added' else '-' if line_obj.get('type') == 'deleted' else ' '
+                        code_lines.append(f"{prefix} {line_num}: {content}")
+                    code_snippet_text = '\n'.join(code_lines)
+            
+            ws_issues.cell(row=row, column=7).value = code_snippet_text if code_snippet_text else 'N/A'
+            
             # 应用样式和边框
-            for col in range(1, 7):
+            for col in range(1, 8):
                 cell = ws_issues.cell(row=row, column=col)
                 cell.border = border
                 cell.alignment = left_align
@@ -214,38 +227,7 @@ class ExcelFormatter(BaseFormatter):
             
             row += 1
     
-    def _create_files_sheet(self, wb, review_data: Dict[str, Any],
-                           header_fill, header_font, center_align,
-                           left_align, border) -> None:
-        """创建文件评审页"""
-        ws_files = wb.create_sheet("文件评审")
-        ws_files.column_dimensions['A'].width = 30
-        ws_files.column_dimensions['B'].width = 12
-        ws_files.column_dimensions['C'].width = 12
-        ws_files.column_dimensions['D'].width = 50
-        
-        headers = ["文件路径", "增加", "删除", "评审总结"]
-        for col, header in enumerate(headers, 1):
-            cell = ws_files.cell(row=1, column=col)
-            cell.value = header
-            cell.fill = header_fill
-            cell.font = header_font
-            cell.alignment = center_align
-            cell.border = border
-        
-        row = 2
-        for file_review in review_data.get('file_reviews', []):
-            ws_files.cell(row=row, column=1).value = file_review['file_path']
-            ws_files.cell(row=row, column=2).value = file_review['additions']
-            ws_files.cell(row=row, column=3).value = file_review['deletions']
-            ws_files.cell(row=row, column=4).value = file_review.get('summary', '')
-            
-            for col in range(1, 5):
-                cell = ws_files.cell(row=row, column=col)
-                cell.border = border
-                cell.alignment = left_align
-            
-            row += 1
+
     
     def get_file_extension(self) -> str:
         """获取文件扩展名"""
