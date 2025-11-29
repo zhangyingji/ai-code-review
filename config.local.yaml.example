@@ -44,7 +44,7 @@ llm:
   max_tokens: 5000
   
   # 是否启用深度思考模式
-  # 设置为 true 即可启用（某些模型并不支持）
+  # 设置为 true 即可启用
   enable_thinking: false
 
 # 评审规则配置 - 可根据项目需求调整

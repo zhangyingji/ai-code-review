@@ -198,8 +198,12 @@ class LLMClient:
         ]
         
         # 如果启用深度思考，在最后一个消息添加 /think 标签
+        # 如果禁用深度思考，在最后一个消息添加 /no_think 标签以强制关闭
         if enable_thinking:
             messages[-1]["content"] += "\n/think"
+        elif not self.enable_thinking:
+            # 当实例配置禁用深度思考时，添加 /no_think 标签以强制关闭
+            messages[-1]["content"] += "\n/no_think"
         
         try:
             response = self.chat(messages)
