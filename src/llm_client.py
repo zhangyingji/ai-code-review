@@ -167,14 +167,14 @@ class LLMClient:
 评审规则:
 {rules_text}
 
-请输出以下JSON格式的评审结果（仅输出JSON，无其他内容）:
+请输出以下JSON格式的评审结果（仅输出 JSON，无其他内容）:
 {{
     "issues": [
         {{
             "severity": "critical/major/minor/suggestion",
             "line": "行号",
             "method": "方法",
-            "category": "问题类别",
+            "category": "问题类別",
             "description": "问题描述",
             "suggestion": "改进建议"
         }}
@@ -182,12 +182,14 @@ class LLMClient:
     "summary": "总体评价"
 }}
 
-【必须遵循的要求】
+【必须遵守的要求】
 1. 严格按照上述JSON格式输出，不加任何前缀/后缀
-2. severity分类必须严格遵循定义，相同类型问题给出一致的严重程度
-3. 优先按影响范围判断：安全性/数据完整性 > 功能正确性/性能 > 代码质量 > 最佳实践
+2. severity分类必须严格遵守定义，相同类型问题给出一致的严重程度
+3. 优先按影响范围判断：安全性/数据完整性 > 功能正確性/性能 > 代码质量 > 最佳实践
 4. 所有文字内容必须使用中文（description/suggestion/summary）
 5. 不使用<think>标签或任何思考过程标记
+6. 行号必须是整数，只包含数字（如 3、14 ），不能包含“line”、“第”等文字
+7. 如果一行代码跨越多行，用窄号表示（如 3-5 表示第3到攗5行）
 """
 
         messages = [

@@ -178,6 +178,18 @@ class ReviewEngine:
         if review_result.get('issues'):
             for issue in review_result['issues']:
                 line_info = issue.get('line', '')
+                
+                # 验证行号信息 - 一些大模制可能返回缺陷桌号
+                if line_info and isinstance(line_info, str):
+                    # 窄下有效的数字（删除非数字字符）
+                    import re
+                    valid_line_match = re.search(r'\d+(?:-\d+)?', str(line_info))
+                    if not valid_line_match:
+                        logger.debug(f"问题缺少有效的行号 [{file_path}] - 原始行号: {line_info}")
+                        continue  # 跳过此问题，不填加code_snippet
+                    # 使用窄取出有效的行号
+                    line_info = valid_line_match.group()
+                
                 code_snippet = self._extract_code_snippet(
                     diff_info.get('diff', ''),
                     line_info
@@ -537,37 +549,43 @@ class ReviewEngine:
                     continue
                 
                 # 处理代码行
-                if in_range or (start_line <= current_line_num <= end_line + 5):
-                    in_range = True
-                    
-                    if line.startswith('-'):
-                        # 删除的行，不计数
+                # 注意：对于处于范围内的行，无论其是否以+、-、空格开头，都应该处理
+                if line.startswith('-'):
+                    # 删除的行，不计数行号
+                    if in_range or (start_line <= current_line_num <= end_line + 5):
+                        in_range = True
                         code_lines.append({
                             'line_num': current_line_num,
                             'type': 'deleted',
                             'content': line[1:],
                             'in_range': start_line <= current_line_num <= end_line
                         })
-                    elif line.startswith('+'):
+                elif line.startswith('+'):
+                    # 新增的行，计数行号
+                    if in_range or (start_line <= current_line_num <= end_line + 5):
+                        in_range = True
                         code_lines.append({
                             'line_num': current_line_num,
                             'type': 'added',
                             'content': line[1:],
                             'in_range': start_line <= current_line_num <= end_line
                         })
-                        current_line_num += 1
-                    else:
-                        # 上下文行
+                    current_line_num += 1
+                else:
+                    # 上下文行（以空格开头或其他）
+                    # 计数行号，但要先检查是否在范围内
+                    if in_range or (start_line <= current_line_num <= end_line + 5):
+                        in_range = True
                         code_lines.append({
                             'line_num': current_line_num,
                             'type': 'context',
                             'content': line[1:] if line.startswith(' ') else line,
                             'in_range': start_line <= current_line_num <= end_line
                         })
-                        current_line_num += 1
-                    
-                    if current_line_num > end_line + 5:
-                        break
+                    current_line_num += 1
+                
+                if current_line_num > end_line + 5:
+                    break
             
             if code_lines:
                 return {
