@@ -32,7 +32,7 @@ def setup_logging(config: Dict) -> str:
     
     # 有线程名称的日志格式
     formatter = logging.Formatter(
-        '[%(asctime)s] [%(levelname)-8s] [%(threadName)-12s] [%(name)s] %(message)s',
+        '[%(asctime)s] [%(levelname)s] [%(threadName)s] [%(name)s] %(message)s',
         datefmt='%Y-%m-%d %H:%M:%S'
     )
     

@@ -14,6 +14,40 @@ def get_html_template() -> str:
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>代码评审报告 - {{ review_data.metadata.source_branch }}</title>
     {{ styles }}
+    <style>
+    /* 回到顶部按钮 */
+    #backToTop {
+        position: fixed;
+        bottom: 30px;
+        right: 30px;
+        width: 50px;
+        height: 50px;
+        background: #0366d6;
+        color: white;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 24px;
+        cursor: pointer;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+        transition: all 0.3s ease;
+        opacity: 0;
+        visibility: hidden;
+        z-index: 1000;
+    }
+    
+    #backToTop:hover {
+        background: #024ea5;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+    }
+    
+    #backToTop.visible {
+        opacity: 1;
+        visibility: visible;
+    }
+    </style>
 </head>
 <body>
     <div class="container">
@@ -33,15 +67,15 @@ def get_html_template() -> str:
             <div class="dashboard-grid">
                 <div class="dashboard-item dimension-tab active" data-dimension="severity" onclick="switchDimension('severity')">
                     <div class="dashboard-item-label">按严重程度</div>
-                    <div class="dashboard-item-value" style="font-size: 1.5em;">🎯</div>
+                    <div class="dashboard-item-value">🎯</div>
                 </div>
                 <div class="dashboard-item dimension-tab" data-dimension="file" onclick="switchDimension('file')">
                     <div class="dashboard-item-label">按文件</div>
-                    <div class="dashboard-item-value" style="font-size: 1.5em;">📄</div>
+                    <div class="dashboard-item-value">📄</div>
                 </div>
                 <div class="dashboard-item dimension-tab" data-dimension="author" onclick="switchDimension('author')">
                     <div class="dashboard-item-label">按提交人</div>
-                    <div class="dashboard-item-value" style="font-size: 1.5em;">👤</div>
+                    <div class="dashboard-item-value">👤</div>
                 </div>
             </div>
         </div>
@@ -123,6 +157,9 @@ def get_html_template() -> str:
         </footer>
     </div>
     
+    <!-- 回到顶部按钮 -->
+    <div id="backToTop" title="回到顶部">↑</div>
+    
     {{ scripts }}
 </body>
 </html>
@@ -158,6 +195,9 @@ def get_scripts() -> str:
         renderSeverityDimension(issues);
         renderFileDimension(issues);
         renderAuthorDimension(issues);
+        
+        // 初始化回到顶部按钮
+        initBackToTop();
     });
     
     // 代码段落展开/折叠
@@ -431,6 +471,28 @@ def get_scripts() -> str:
             filterItems.forEach(item => item.classList.remove('active'));
             clickedFilter.classList.add('active');
         }
+    }
+    
+    // 初始化回到顶部按钮
+    function initBackToTop() {
+        const backToTopButton = document.getElementById('backToTop');
+        
+        // 监听滚动事件
+        window.addEventListener('scroll', function() {
+            if (window.pageYOffset > 300) {
+                backToTopButton.classList.add('visible');
+            } else {
+                backToTopButton.classList.remove('visible');
+            }
+        });
+        
+        // 点击事件
+        backToTopButton.addEventListener('click', function() {
+            window.scrollTo({
+                top: 0,
+                behavior: 'smooth'
+            });
+        });
     }
 </script>"""
 

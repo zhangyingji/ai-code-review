@@ -20,14 +20,14 @@ def get_css_styles() -> str:
     .metadata-label { font-weight: 600; color: #586069; }
     
     /* 仪表盘 */
-    .dashboard { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; border-radius: 8px; margin-bottom: 30px; }
-    .dashboard h2 { color: white; border-bottom: 2px solid rgba(255,255,255,0.3); margin-top: 0; }
-    .dashboard-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 20px; margin-top: 20px; }
-    .dashboard-item { text-align: center; padding: 15px; background: rgba(255,255,255,0.1); border-radius: 6px; cursor: pointer; border: 2px solid transparent; transition: all 0.3s; }
-    .dashboard-item:hover { background: rgba(255,255,255,0.15); transform: translateY(-2px); }
+    .dashboard { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
+    .dashboard h2 { color: white; border-bottom: 2px solid rgba(255,255,255,0.3); margin-top: 0; margin-bottom: 15px; font-size: 1.4em; }
+    .dashboard-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 12px; margin-top: 15px; }
+    .dashboard-item { text-align: center; padding: 12px 8px; background: rgba(255,255,255,0.1); border-radius: 6px; cursor: pointer; border: 2px solid transparent; transition: all 0.3s; }
+    .dashboard-item:hover { background: rgba(255,255,255,0.15); transform: translateY(-1px); }
     .dashboard-item.active { box-shadow: 0 4px 12px rgba(3, 102, 214, 0.3); border-color: rgba(255, 255, 255, 0.5); }
-    .dashboard-item-label { font-size: 0.9em; opacity: 0.9; margin-bottom: 8px; }
-    .dashboard-item-value { font-size: 2em; font-weight: bold; }
+    .dashboard-item-label { font-size: 0.85em; opacity: 0.9; margin-bottom: 6px; }
+    .dashboard-item-value { font-size: 1.5em; font-weight: bold; }
     
     /* 问题卡片 */
     .issues-list { margin-top: 20px; }
