@@ -40,8 +40,8 @@ llm:
   
   # 模型名称，必须与 API 服务器的模型一致
   model: "qwen3-30b-a3b"
-  temperature: 0.3
-  max_tokens: 8192
+  temperature: 0.1
+  max_tokens: 5000
   
   # 是否启用深度思考模式
   # 设置为 true 即可启用（某些模型并不支持）

@@ -177,17 +177,20 @@ class ReviewEngine:
         # 为每个问题添加代码段落
         if review_result.get('issues'):
             for issue in review_result['issues']:
+                line_info = issue.get('line', '')
                 code_snippet = self._extract_code_snippet(
                     diff_info.get('diff', ''),
-                    issue.get('line', '')
+                    line_info
                 )
                 if code_snippet:
                     issue['code_snippet'] = code_snippet
                 else:
-                    # 代码段落提取失败时记录信息
-                    line_info = issue.get('line', 'N/A')
+                    # 代码段落提取失败时记录详细信息用于诊断
                     if line_info and line_info != 'N/A':
-                        logger.debug(f"无法为 {file_path} 的第 {line_info} 行提取代码段落")
+                        diff_preview = diff_info.get('diff', '')[:200]  # 获取diff前200个字符用于诊断
+                        logger.info(f"提取代码段落失败 [{file_path}] - 行号: '{line_info}' (类型: {type(line_info).__name__}), Diff长度: {len(diff_info.get('diff', ''))}, Diff预览: {diff_preview}")
+                    else:
+                        logger.debug(f"问题缺少行号信息 [{file_path}]")
         
         return review_result
     
@@ -498,11 +501,26 @@ class ReviewEngine:
             #  context_line
             # -old_line
             # +new_line
+            # 或者（对于新增文件或简化格式）：
+            # + code_line
+            # - code_line
+            #   context_line
             
             lines = diff.split('\n')
             code_lines = []
             current_line_num = 0
             in_range = False
+            has_valid_diff_header = False  # 标记是否找到有效的diff头部
+            
+            # 首先检查是否有标准的 @@ 头部
+            for line in lines:
+                if line.startswith('@@'):
+                    has_valid_diff_header = True
+                    break
+            
+            # 如果没有标准的diff头部，用简化模式处理（用于新增文件）
+            if not has_valid_diff_header:
+                current_line_num = 1  # 从第1行开始
             
             for line in lines:
                 # 跳过 diff 头部和其他元数据
