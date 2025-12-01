@@ -4,15 +4,16 @@
 # GitLab 配置
 gitlab:
   # 支持配置第一个项目，或者用项目列表配置多个项目
-  url: "https://gitlab.example.com"
+  url: "https://gitlab.example.com"  # GitLab 服务器地址
   private_token: "glpat-xxxxxxxxxxxxxxxxxxxx"  # 在 GitLab 设置中创建
   
-  # 选项 1: 第一个项目
+  # 选项 1: 单项目配置（推荐用于单项目评审）
   project_id: 123  # 项目 ID,在项目设置中查看
   project_name: "my-project"  # 项目名称（用于日志显示）
   
-  # 选项 2: 配置多个项目，会根据指定的 project_name 选择
-  # 将此方案的 project_id 注释掉，削除下面的 # 即可使用
+  # 选项 2: 多项目配置（适用于需要评审多个项目的场景）
+  # 使用方法：注释掉上面的 project_id 和 project_name，取消下面配置的注释
+  # 然后通过 -p/--project 参数指定要评审的项目名称
   # projects:
   #   - name: "project-a"     # 项目名称，用于作为 --project 参数
   #     id: 123
@@ -27,7 +28,9 @@ branch:
   base_branch: "main"     # 对比基准分支（必须指定）
   # 分支比较策略
   # - "direct": 仅比较两个分支之间的直接差异（默认，最快）
+  #   适用于快速评审，只关注源分支和目标分支之间的最终差异
   # - "all_commits": 获取并评审所有提交记录及其差异（适合合并驱动的工作流，较慢）
+  #   适用于需要详细评审每个提交的场景，会逐个分析每个提交的变更
   strategy: "direct"
 
 # 大模型配置
@@ -40,11 +43,14 @@ llm:
   
   # 模型名称，必须与 API 服务器的模型一致
   model: "qwen3-30b-a3b"
+  # temperature 控制输出的随机性，值越低输出越确定，值越高越随机(0-1)
   temperature: 0.1
+  # max_tokens 限制模型输出的最大token数
   max_tokens: 5000
   
   # 是否启用深度思考模式
   # 设置为 true 即可启用
+  # 启用后会消耗更多时间和token，但可能获得更深入的分析结果
   enable_thinking: false
 
 # 评审规则配置 - 可根据项目需求调整
@@ -112,7 +118,7 @@ review_rules:
 # 报告配置
 report:
   output_dir: "./reports"
-  format: "html"  # 可选: html, excel, markdown, json
+  format: "html"  # 可选: html, excel
   group_by_author: true
   include_code_snippet: true
 

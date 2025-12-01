@@ -7,11 +7,13 @@ gitlab:
   url: "https://gitlab.example.com"  # GitLab 服务器地址
   private_token: "your_gitlab_token"  # GitLab 私有 Token，在 GitLab 设置 > 访问令牌中创建
   
-  # 单项目配置（选择 1）
+  # 单项目配置（选择 1，推荐用于单项目评审）
   project_id: 123
   project_name: ""  # 项目名称（非必填，用于日志显示）
   
-  # 多项目配置（选择 2，注释掉 project_id，使用 -p 参数指定项目）
+  # 多项目配置（选择 2，适用于需要评审多个项目的场景）
+  # 使用方法：注释掉上面的 project_id，取消下面配置的注释
+  # 然后通过 -p/--project 参数指定要评审的项目名称
   # projects:
   #   - name: "project-a"
   #     id: 123
@@ -24,7 +26,9 @@ branch:
   base_branch: "main"                   # 基准分支（必须指定）
   # 分支比较策略
   # - "direct": 仅比较两个分支之间的直接差异（默认，最快）
+  #   适用于快速评审，只关注源分支和目标分支之间的最终差异
   # - "all_commits": 获取并评审所有提交记录及其差异（适合合并驱动的工作流，较慢）
+  #   适用于需要详细评审每个提交的场景，会逐个分析每个提交的变更
   strategy: "direct"
 
 # 大模型配置
@@ -37,9 +41,13 @@ llm:
   
   api_key: "your_api_key"  # API 密钥
   model: "gpt-4"            # 模型名称
-  temperature: 0.1          # 温度参数，控制输出的随机性 (0-1)
-  max_tokens: 5000          # 最大 token 数
-  enable_thinking: false    # 是否启用深度思考模式（某些模型不支持）
+  # temperature 控制输出的随机性，值越低输出越确定，值越高越随机(0-1)
+  temperature: 0.1          
+  # max_tokens 限制模型输出的最大token数
+  max_tokens: 5000          
+  # 是否启用深度思考模式（某些模型不支持）
+  # 启用后会消耗更多时间和token，但可能获得更深入的分析结果
+  enable_thinking: false
 
 # 评审规则配置 - 可根据项目需求调整
 review_rules:
@@ -196,7 +204,7 @@ performance:
 
 # 提交人配置
 committer_filter:
-  # 批量控制提交人: 当为空时默认评审所有提交人
+  # 批量控制提交人：当为空时默认评审所有提交人
   # 当列表非空时，仅评审列表中的提交人的提交
   authors:
     # - "zhangsan@example.com"
