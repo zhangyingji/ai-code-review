@@ -159,10 +159,11 @@ class ExcelFormatter(BaseFormatter):
         ws_issues.column_dimensions['D'].width = 15
         ws_issues.column_dimensions['E'].width = 40
         ws_issues.column_dimensions['F'].width = 60
-        ws_issues.column_dimensions['G'].width = 50
+        ws_issues.column_dimensions['G'].width = 15
+        ws_issues.column_dimensions['H'].width = 50
         
         # 表头
-        headers = ["严重程度", "文件", "行号", "方法", "问题描述", "改进建议", "问题代码"]
+        headers = ["严重程度", "文件", "行号", "方法", "问题描述", "改进建议", "提交人", "问题代码"]
         for col, header in enumerate(headers, 1):
             cell = ws_issues.cell(row=1, column=col)
             cell.value = header
@@ -194,6 +195,7 @@ class ExcelFormatter(BaseFormatter):
             ws_issues.cell(row=row, column=4).value = issue.get('method', 'N/A')
             ws_issues.cell(row=row, column=5).value = issue.get('description', '')
             ws_issues.cell(row=row, column=6).value = issue.get('suggestion', '')
+            ws_issues.cell(row=row, column=7).value = issue.get('author', 'N/A')
             
             # 提取代码段落
             code_snippet_text = ''
@@ -209,10 +211,10 @@ class ExcelFormatter(BaseFormatter):
                         code_lines.append(f"{prefix} {line_num}: {content}")
                     code_snippet_text = '\n'.join(code_lines)
             
-            ws_issues.cell(row=row, column=7).value = code_snippet_text if code_snippet_text else 'N/A'
+            ws_issues.cell(row=row, column=8).value = code_snippet_text if code_snippet_text else 'N/A'
             
             # 应用样式和边框
-            for col in range(1, 8):
+            for col in range(1, 9):
                 cell = ws_issues.cell(row=row, column=col)
                 cell.border = border
                 cell.alignment = left_align
