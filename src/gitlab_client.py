@@ -271,7 +271,7 @@ class GitLabClient:
                 # 获取该提交修改的文件
                 commit_detail = self.project.commits.get(commit['id'])
                 if hasattr(commit_detail, 'diff'):
-                    diffs = commit_detail.diff()
+                    diffs = commit_detail.diff(get_all=True)
                     for diff in diffs:
                         if 'new_path' in diff:
                             modified_files.append(diff['new_path'])
