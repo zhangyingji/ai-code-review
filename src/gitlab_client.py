@@ -262,9 +262,20 @@ class GitLabClient:
         logger.info(f"找到 {len(comparison['commits'])} 个提交记录")
         
         commits = []
-        # 性能优化：直接使用 comparison 中的提交信息，不再为每个提交单独获取diff
-        # modified_files 由 get_diff_between_branches 统一提供，在 review_engine 中建立映射
+        # 获取每个提交修改的文件列表，用于精确匹配提交人
         for commit in comparison['commits']:
+            modified_files = []
+            try:
+                # 获取该提交修改的文件
+                commit_detail = self.project.commits.get(commit['id'])
+                if hasattr(commit_detail, 'diff'):
+                    diffs = commit_detail.diff()
+                    for diff in diffs:
+                        if 'new_path' in diff:
+                            modified_files.append(diff['new_path'])
+            except Exception as e:
+                logger.debug(f"无法获取提交 {commit['short_id']} 的文件列表: {e}")
+            
             commits.append({
                 'id': commit['id'],
                 'short_id': commit['short_id'],
@@ -273,7 +284,7 @@ class GitLabClient:
                 'author_name': commit['author_name'],
                 'author_email': commit['author_email'],
                 'created_at': commit['created_at'],
-                'modified_files': []  # 性能优化：留空，由diffs统一提供
+                'modified_files': modified_files  # 添加修改文件列表
             })
         
         logger.info(f"✔ direct模式: 完成了 {len(commits)} 个提交的处理")
@@ -319,7 +330,7 @@ class GitLabClient:
                 
                 # 筛选提交（只要比匹配点更新的提交）
                 processed_count = 0
-                for commit_data in commits_list[:max_commits]:
+                for commit_data in commits_List[:max_commits]:
                     if commit_data.id == merge_base_id:
                         logger.debug(f"已经做到匹配点，停止提取")
                         break  # 已到匹配点，停止提取

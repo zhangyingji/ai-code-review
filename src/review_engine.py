@@ -63,12 +63,12 @@ class ReviewEngine:
         # 设置提交人过滤配置
         self.filter_authors = filter_authors or []
         
-    def _should_review_author(self, author_email: str) -> bool:
+    def _should_review_author(self, author_name: str) -> bool:
         """
         判断是否需要评审该提交人的提交
         
         Args:
-            author_email: 提交人邮箱
+            author_name: 提交人姓名
             
         Returns:
             是否需要评审
@@ -77,8 +77,8 @@ class ReviewEngine:
         if not self.filter_authors:
             return True
         
-        # 当列表非空时，仅评审指定的提交人
-        return author_email in self.filter_authors
+        # 当列表非空时，仅评审指定的提交人（按姓名匹配，不区分大小写）
+        return author_name.lower() in [name.lower() for name in self.filter_authors]
     
     def collect_review_rules(self) -> List[str]:
         """
@@ -118,13 +118,14 @@ class ReviewEngine:
         
         return True
     
-    def review_diff(self, diff_info: Dict, rules: List[str]) -> Optional[Dict]:
+    def review_diff(self, diff_info: Dict, rules: List[str], commits: Optional[List[Dict]] = None) -> Optional[Dict]:
         """
         评审单个文件的差异
         
         Args:
             diff_info: 差异信息
             rules: 评审规则
+            commits: 提交记录列表，用于关联提交人信息
             
         Returns:
             评审结果
@@ -174,20 +175,31 @@ class ReviewEngine:
         review_result['new_file'] = diff_info.get('new_file', False)
         review_result['renamed_file'] = diff_info.get('renamed_file', False)
         
-        # 为每个问题添加代码段落
+        # 为每个问题添加代码段落和提交人信息
         if review_result.get('issues'):
+            # 根据文件路径和提交列表，找到修改该文件的提交人
+            commit_author = self._get_file_commit_author(diff_info['file_path'], commits)
+            
             for issue in review_result['issues']:
+                # 添加提交人信息
+                if commit_author:
+                    issue['author'] = commit_author.get('author_name', 'Unknown')
+                else:
+                    # 如果未能从commits中找到提交人，记录警告
+                    logger.warning(f"未能为文件 {file_path} 找到任何提交人，commits列表为空或无法获取: {len(commits) if commits else 0}")
+                    issue['author'] = 'Unknown'
+                
                 line_info = issue.get('line', '')
                 
-                # 验证行号信息 - 一些大模制可能返回缺陷桌号
+                # 验证行号信息 - 一些大模型可能返回缺陷行号
                 if line_info and isinstance(line_info, str):
-                    # 窄下有效的数字（删除非数字字符）
+                    # 提取有效的数字（删除非数字字符）
                     import re
                     valid_line_match = re.search(r'\d+(?:-\d+)?', str(line_info))
                     if not valid_line_match:
                         logger.debug(f"问题缺少有效的行号 [{file_path}] - 原始行号: {line_info}")
-                        continue  # 跳过此问题，不填加code_snippet
-                    # 使用窄取出有效的行号
+                        continue  # 跳过此问题，不提取code_snippet
+                    # 使用提取出的有效行号
                     line_info = valid_line_match.group()
                 
                 code_snippet = self._extract_code_snippet(
@@ -205,6 +217,62 @@ class ReviewEngine:
                         logger.debug(f"问题缺少行号信息 [{file_path}]")
         
         return review_result
+    
+    def _get_file_commit_author(self, file_path: str, commits: Optional[List[Dict]]) -> Optional[Dict]:
+        """
+        根据文件路径找到修改该文件的提交人
+        
+        在direct模式下，使用第一个提交（源分支最早的提交）作为变更的原始发起者
+        在all_commits模式下，使用真正修改该文件的提交人（跳过合并账号）
+        
+        Args:
+            file_path: 文件路径
+            commits: 提交记录列表
+            
+        Returns:
+            提交信息（包含author_name等），如果找不到则返回None
+        """
+        if not commits:
+            return None
+        
+        # 判断是direct还是all_commits模式
+        # all_commits模式的提交有modified_files字段
+        has_modified_files = any('modified_files' in c for c in commits)
+        
+        if has_modified_files:
+            # all_commits模式：找到真正修改该文件的提交（非合并账号）
+            for commit in commits:
+                modified_files = commit.get('modified_files', [])
+                
+                # 检查该文件是否在此提交中被修改
+                if file_path in modified_files:
+                    author_name = commit.get('author_name', 'Unknown')
+                    author_email = commit.get('author_email', '')
+                    # 优先使用真正账号的提交（非合并账号）
+                    if author_name.lower() != 'tooladmin':
+                        logger.debug(f"找到文件 {file_path} 的真正修改者: {author_name} <{author_email}>")
+                        return commit
+            
+            # 如果所有修改该文件的提交都是tooladmin，使用第一个非tooladmin的提交
+            for commit in commits:
+                author_name = commit.get('author_name', 'Unknown')
+                if author_name.lower() != 'tooladmin':
+                    logger.debug(f"未找到文件 {file_path} 的修改记录，使用提交 {author_name}")
+                    return commit
+            
+            # 最后才用tooladmin的提交
+            if commits:
+                logger.warning(f"所有提交均来自合并账号，使用第一个: {commits[0]['author_name']}")
+                return commits[0]
+        else:
+            # direct模式：使用第一个提交（源分支最早的提交）作为原始发起者
+            # 按照规范，第一个提交代表变更的原始发起者
+            author_name = commits[0].get('author_name', 'Unknown')
+            author_email = commits[0].get('author_email', '')
+            logger.debug(f"direct模式: 使用第一个提交作为原始发起者: {author_name} <{author_email}>")
+            return commits[0]
+        
+        return None
     
     def review_branches(self, review_branch: str, base_branch: str = '') -> Dict:
         """
@@ -228,10 +296,6 @@ class ReviewEngine:
         diffs = self.gitlab_client.get_diff_between_branches(review_branch, base_branch)
         logger.info(f"共有 {len(diffs)} 个文件发生变化")
         
-        # 获取子分支上的提交记录
-        commits = self.gitlab_client.get_commits_between_branches(review_branch, base_branch)
-        logger.info(f"使用分支策略 '{self.branch_strategy}' 获取提交记录")
-        
         # 根据配置的分支比较策略选择不同的提交获取方法
         if self.branch_strategy == 'all_commits':
             logger.info(f"使用all_commits模式：获取两个分支之间的所有提交")
@@ -246,7 +310,7 @@ class ReviewEngine:
         # 根据配置对提交记录进行过滤
         if self.filter_authors:
             original_count = len(commits)
-            commits = [c for c in commits if self._should_review_author(c.get('author_email', ''))]
+            commits = [c for c in commits if self._should_review_author(c.get('author_name', ''))]
             logger.info(f"提交人过滤: {original_count} -> {len(commits)} 个提交")
             
             # 如果过滤后没有任何提交，直接返回空报告
@@ -269,7 +333,6 @@ class ReviewEngine:
                     },
                     'commits': [],
                     'file_reviews': [],
-                    'author_stats': [],
                     'statistics': {
                         'total_issues': 0,
                         'by_severity': {'critical': 0, 'major': 0, 'minor': 0, 'suggestion': 0},
@@ -282,18 +345,12 @@ class ReviewEngine:
         rules = self.collect_review_rules()
         logger.info(f"启用 {len(rules)} 条评审规则")
         
-        # 根据配置对差異阶评审（简化处理）
-        # 实际应用中可以根据提交人进一步筛选diff
-        filtered_diffs = diffs
         if self.enable_concurrent and len(diffs) > 1:
             logger.info(f"启用并发评审模式,max_workers={self.max_workers}")
-            file_reviews = self._review_concurrent(diffs, rules)
+            file_reviews = self._review_concurrent(diffs, rules, commits)
         else:
             logger.info("使用串行评审模式")
-            file_reviews = self._review_sequential(diffs, rules)
-        
-        # 按作者分组统计
-        author_stats = self._group_by_author(commits, file_reviews)
+            file_reviews = self._review_sequential(diffs, rules, commits)
         
         # 汇总统计
         total_issues = sum(len(r.get('issues', [])) for r in file_reviews)
@@ -318,7 +375,6 @@ class ReviewEngine:
             },
             'commits': commits,
             'file_reviews': file_reviews,
-            'author_stats': author_stats,
             'statistics': {
                 'total_issues': total_issues,
                 'by_severity': issue_by_severity,
@@ -330,16 +386,16 @@ class ReviewEngine:
         logger.info(f"评审完成,耗时 {duration:.2f} 秒,发现 {total_issues} 个问题")
         return review_report
     
-    def _review_sequential(self, diffs: List[Dict], rules: List[str]) -> List[Dict]:
+    def _review_sequential(self, diffs: List[Dict], rules: List[str], commits: Optional[List[Dict]] = None) -> List[Dict]:
         """串行评审"""
         file_reviews = []
         for diff in diffs:
-            result = self.review_diff(diff, rules)
+            result = self.review_diff(diff, rules, commits)
             if result:
                 file_reviews.append(result)
         return file_reviews
     
-    def _review_concurrent(self, diffs: List[Dict], rules: List[str]) -> List[Dict]:
+    def _review_concurrent(self, diffs: List[Dict], rules: List[str], commits: Optional[List[Dict]] = None) -> List[Dict]:
         """并发评审"""
         file_reviews = []
         logger.info(f"启动 {self.max_workers} 个并发任务来评审 {len(diffs)} 个文件")
@@ -347,7 +403,7 @@ class ReviewEngine:
         with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
             # 提交所有任务
             future_to_diff = {
-                executor.submit(self.review_diff, diff, rules): diff 
+                executor.submit(self.review_diff, diff, rules, commits): diff 
                 for diff in diffs
             }
             
@@ -371,85 +427,6 @@ class ReviewEngine:
         logger.info(f"并发评审完成: {completed_count}/{len(diffs)} 个文件, 发现 {sum(len(r.get('issues', [])) for r in file_reviews)} 个问题")
         return file_reviews
     
-    def _group_by_author(self, commits: List[Dict], file_reviews: List[Dict]) -> List[Dict]:
-        """
-        按作者分组统计
-        
-        Args:
-            commits: 提交列表
-            file_reviews: 文件评审结果列表
-            
-        Returns:
-            按作者分组的统计信息
-        """
-        # 提取所有作者
-        authors = {}
-        # 建立文件到提交者的映射
-        file_to_commits = {}  # file_path -> [commits]
-        
-        for commit in commits:
-            author_email = commit['author_email']
-            author_name = commit['author_name']
-            
-            if author_email not in authors:
-                authors[author_email] = {
-                    'name': author_name,
-                    'email': author_email,
-                    'commits': [],
-                    'files_changed': set(),
-                    'issues': []
-                }
-            
-            authors[author_email]['commits'].append(commit)
-            
-            # 建立文件到提交者的映射
-            for modified_file in commit.get('modified_files', []):
-                if modified_file not in file_to_commits:
-                    file_to_commits[modified_file] = []
-                file_to_commits[modified_file].append(author_email)
-        
-        # 关联文件评审结果到作者
-        # 只将问题分配给实际修改了该文件的作者
-        for review in file_reviews:
-            file_path = review['file_path']
-            
-            # 找到修改此文件的作者
-            reviewers = file_to_commits.get(file_path, [])
-            
-            if not reviewers:
-                # 如果没有找到提交记录，则分配给所有作者（备选方案）
-                reviewers = list(authors.keys())
-            
-            # 将问题只分配给修改了此文件的作者
-            for author_email in reviewers:
-                if author_email in authors:  # 确保作者在过滤列表中
-                    authors[author_email]['files_changed'].add(file_path)
-                    if review.get('issues'):
-                        # 为每个问题添加作者和文件信息（用于HTML模板显示）
-                        author_name = authors[author_email]['name']
-                        for issue in review['issues']:
-                            # 添加作者信息
-                            issue['author'] = author_name
-                            # 添加文件路径（如果还没有）
-                            if 'file_path' not in issue:
-                                issue['file_path'] = file_path
-                        authors[author_email]['issues'].extend(review['issues'])
-        
-        # 转换为列表并计算统计
-        author_list = []
-        for email, info in authors.items():
-            info['files_changed'] = list(info['files_changed'])
-            info['commit_count'] = len(info['commits'])
-            info['file_count'] = len(info['files_changed'])
-            info['issue_count'] = len(info['issues'])
-            info['issue_by_severity'] = self._count_issues_by_severity(info['issues'])
-            author_list.append(info)
-        
-        # 按提交数排序
-        author_list.sort(key=lambda x: x['commit_count'], reverse=True)
-        
-        return author_list
-    
     def _count_by_severity(self, file_reviews: List[Dict]) -> Dict[str, int]:
         """统计问题严重程度分布"""
         severity_count = {
@@ -464,22 +441,6 @@ class ReviewEngine:
                 severity = issue.get('severity', 'minor')
                 if severity in severity_count:
                     severity_count[severity] += 1
-        
-        return severity_count
-    
-    def _count_issues_by_severity(self, issues: List[Dict]) -> Dict[str, int]:
-        """统计单个问题列表的严重程度分布"""
-        severity_count = {
-            'critical': 0,
-            'major': 0,
-            'minor': 0,
-            'suggestion': 0
-        }
-        
-        for issue in issues:
-            severity = issue.get('severity', 'minor')
-            if severity in severity_count:
-                severity_count[severity] += 1
         
         return severity_count
     

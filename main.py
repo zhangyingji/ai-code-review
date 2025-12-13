@@ -117,8 +117,6 @@ def main():
     parser.add_argument('-f', '--format', choices=['html', 'excel'],
                        help='报告格式 (覆盖配置文件)')
     parser.add_argument('-o', '--output', help='报告输出目录 (覆盖配置文件)')
-    parser.add_argument('--no-group-by-author', action='store_true',
-                       help='不按作者分组')
     parser.add_argument('--log-level', choices=['DEBUG', 'INFO', 'WARNING', 'ERROR'],
                        help='日志级别 (覆盖配置文件)')
     
@@ -185,8 +183,6 @@ def main():
         target_branch = args.target or config['branch'].get('base_branch', '')
         report_format = args.format or config['report']['format']
         output_dir = args.output or config['report']['output_dir']
-        group_by_author = not args.no_group_by_author and config['report']['group_by_author']
-        
         # 检查是否提供了源分支
         if not source_branch:
             logger.error("错误: 必须指定源分支 (-s/--source 或在配置文件中设置)")
@@ -273,8 +269,7 @@ def main():
         report_generator = ReportGenerator(output_dir=output_dir)
         report_path = report_generator.generate_report(
             review_data=review_data,
-            format=report_format,
-            group_by_author=group_by_author
+            format=report_format
         )
         
         # 输出总结

@@ -73,10 +73,6 @@ def get_html_template() -> str:
                     <div class="dashboard-item-label">按文件</div>
                     <div class="dashboard-item-value">📄</div>
                 </div>
-                <div class="dashboard-item dimension-tab" data-dimension="author" onclick="switchDimension('author')">
-                    <div class="dashboard-item-label">按提交人</div>
-                    <div class="dashboard-item-value">👤</div>
-                </div>
             </div>
         </div>
         
@@ -110,31 +106,11 @@ def get_html_template() -> str:
             <div id="file-issues" class="issues-container"></div>
         </div>
         
-        <!-- 提交人维度 -->
-        <div id="author-dimension" class="dimension-view" style="display: none;">
-            <h2>👥 按提交人维度展示</h2>
-            <div id="author-issues" class="issues-container"></div>
-        </div>
-        
         <!-- 隐藏的原始数据 - 用于JavaScript渲染 -->
         <script type="application/json" id="all-issues-data">
         {% set all_issues = [] %}
         {% set seen_issues = [] %}
-        {# 优先从 author_stats 收集问题（包含完整的作者信息）#}
-        {% if review_data.author_stats %}
-            {% for author in review_data.author_stats %}
-                {% for issue in author.issues %}
-                    {# 使用文件路径+行号+描述作为唯一标识 #}
-                    {% set issue_key = (issue.file_path or '') ~ '_' ~ (issue.line or '') ~ '_' ~ (issue.description or '') %}
-                    {% if issue_key not in seen_issues %}
-                        {% set _ = all_issues.append(issue) %}
-                        {% set _ = seen_issues.append(issue_key) %}
-                    {% endif %}
-                {% endfor %}
-            {% endfor %}
-        {% endif %}
-        {# 如果没有收集到问题，从 file_reviews 补充 #}
-        {% if all_issues|length == 0 and review_data.file_reviews %}
+        {% if review_data.file_reviews %}
             {% for file_review in review_data.file_reviews %}
                 {% for issue in file_review.issues %}
                     {% set issue_with_context = dict(issue) %}
@@ -194,7 +170,6 @@ def get_scripts() -> str:
         const issues = JSON.parse(document.getElementById('all-issues-data').textContent);
         renderSeverityDimension(issues);
         renderFileDimension(issues);
-        renderAuthorDimension(issues);
         
         // 初始化回到顶部按钮
         initBackToTop();
@@ -307,59 +282,6 @@ def get_scripts() -> str:
                 </h3>`;
             
             fileIssues.forEach(issue => {
-                html += renderIssueCard(issue);
-            });
-            
-            html += '</div>';
-        });
-        
-        container.innerHTML = html || '<div style="text-align: center; padding: 40px; color: #586069;">🌟 没有找到任何问题!</div>';
-    }
-    
-    // 渲染提交人维度
-    function renderAuthorDimension(issues) {
-        const container = document.getElementById('author-issues');
-        
-        // 按提交人分组
-        const byAuthor = {};
-        issues.forEach(issue => {
-            const author = issue.author || 'Unknown';
-            if (!byAuthor[author]) {
-                byAuthor[author] = [];
-            }
-            byAuthor[author].push(issue);
-        });
-        
-        // 按问题数降序排序
-        const authors = Object.keys(byAuthor).sort((a, b) => {
-            return byAuthor[b].length - byAuthor[a].length;
-        });
-        
-        // 构建HTML
-        let html = '';
-        authors.forEach(author => {
-            const authorIssues = byAuthor[author];
-            
-            // 计算统计信息
-            const stats = {};
-            ['critical', 'major', 'minor', 'suggestion'].forEach(s => { stats[s] = 0; });
-            authorIssues.forEach(issue => {
-                const severity = issue.severity || 'suggestion';
-                stats[severity]++;
-            });
-            
-            // 按严重程度排序问题
-            authorIssues.sort((a, b) => {
-                return SEVERITY_RANK[a.severity || 'suggestion'] - SEVERITY_RANK[b.severity || 'suggestion'];
-            });
-            
-            html += `<div class="author-group">
-                <h3 class="author-group-title">
-                    <span>👤 ${author}</span>
-                    <span class="author-stats">${authorIssues.length}个问题（严重${stats.critical} 主要${stats.major} 次要${stats.minor} 建议${stats.suggestion}）</span>
-                </h3>`;
-            
-            authorIssues.forEach(issue => {
                 html += renderIssueCard(issue);
             });
             

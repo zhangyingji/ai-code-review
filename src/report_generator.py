@@ -1,7 +1,7 @@
 """报告生成器 - 重构后的简洁版本"""
 import os
 import logging
-from typing import Dict, Any
+from typing import Dict, Any, List, Optional
 from datetime import datetime
 from src.formatters import (
     HtmlFormatter,
@@ -43,22 +43,18 @@ class ReportGenerator:
             except ImportError:
                 logger.warning("Excel格式化器不可用，已跳过")
     
-    def generate_report(self, review_data: Dict[str, Any], format: str = "html",
-                       group_by_author: bool = True, **kwargs) -> str:
+    def generate_report(self, review_data: Dict[str, Any], format: str = "html", **kwargs) -> str:
         """生成评审报告
         
         Args:
             review_data: 评审数据
             format: 报告格式 (html, excel)
-            group_by_author: 是否按作者分组（默认True，用于向后兼容）
             **kwargs: 额外参数，传递给格式化器
             
         Returns:
             报告文件路径
         """
-        # 将group_by_author传递给格式化器
-        kwargs['group_by_author'] = group_by_author
-        # 检查格式是否支持
+        # 格式化数据
         if format not in self.formatters:
             supported_formats = ', '.join(self.formatters.keys())
             raise ValueError(f"不支持的格式: {format}。支持的格式: {supported_formats}")
@@ -91,7 +87,7 @@ class ReportGenerator:
         return filepath
     
     def generate_multiple_formats(self, review_data: Dict[str, Any],
-                                  formats: list | None = None) -> Dict[str, str]:
+                                  formats: Optional[List[str]] = None) -> Dict[str, str]:
         """生成多种格式的报告
         
         Args:

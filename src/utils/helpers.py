@@ -1,7 +1,7 @@
 """辅助工具函数"""
 import re
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Tuple
 
 
 def sanitize_filename(filename: str, replacement: str = '_') -> str:
@@ -86,7 +86,7 @@ def truncate_text(text: str, max_length: int = 100, suffix: str = '...') -> str:
     return text[:max_length - len(suffix)] + suffix
 
 
-def parse_line_range(line_str: str) -> tuple[int, int]:
+def parse_line_range(line_str: str) -> Tuple[int, int]:
     """解析行号范围
     
     Args:

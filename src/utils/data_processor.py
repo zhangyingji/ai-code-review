@@ -29,31 +29,6 @@ class DataProcessor:
         )
     
     @staticmethod
-    def group_issues_by_author(review_data: Dict[str, Any]) -> Dict[str, List[Dict[str, Any]]]:
-        """按作者分组问题
-        
-        Args:
-            review_data: 评审数据
-            
-        Returns:
-            以作者名为键，问题列表为值的字典
-        """
-        grouped = {}
-        
-        for file_review in review_data.get('file_reviews', []):
-            for issue in file_review.get('issues', []):
-                # 从commits中查找对应文件的作者
-                author = issue.get('author', 'Unknown')
-                if author not in grouped:
-                    grouped[author] = []
-                
-                issue_copy = issue.copy()
-                issue_copy['file_path'] = file_review['file_path']
-                grouped[author].append(issue_copy)
-        
-        return grouped
-    
-    @staticmethod
     def group_issues_by_file(review_data: Dict[str, Any]) -> Dict[str, List[Dict[str, Any]]]:
         """按文件分组问题
         
@@ -121,20 +96,6 @@ class DataProcessor:
                     issues.append(issue_copy)
         
         return issues
-    
-    @staticmethod
-    def enrich_author_stats(review_data: Dict[str, Any]) -> None:
-        """丰富作者统计信息（就地修改）
-        
-        为每个作者的问题列表按严重程度排序
-        
-        Args:
-            review_data: 评审数据
-        """
-        if 'author_stats' in review_data:
-            for author in review_data['author_stats']:
-                if author.get('issues'):
-                    author['issues'] = DataProcessor.sort_issues_by_severity(author['issues'])
     
     @staticmethod
     def enrich_file_reviews(review_data: Dict[str, Any]) -> None:

@@ -205,11 +205,11 @@ performance:
 # 提交人配置
 committer_filter:
   # 批量控制提交人：当为空时默认评审所有提交人
-  # 当列表非空时，仅评审列表中的提交人的提交
+  # 当列表非空时，仅评审列表中的提交人的提交（按姓名匹配，不区分大小写）
   authors:
-    # - "zhangsan@example.com"
-    # - "lisi@example.com"
-    # - "wangwu@example.com"
+    # - "Zhang San"
+    # - "Li Si"
+    # - "Wang Wu"
 
 # 日志配置
 logging:

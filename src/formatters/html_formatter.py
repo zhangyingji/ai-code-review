@@ -36,7 +36,6 @@ class HtmlFormatter(BaseFormatter):
         review_data = self.pre_process(review_data)
         
         # 数据处理 - 排序问题
-        DataProcessor.enrich_author_stats(review_data)
         DataProcessor.enrich_file_reviews(review_data)
         
         # 获取模板组件
