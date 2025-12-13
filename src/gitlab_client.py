@@ -258,12 +258,14 @@ class GitLabClient:
             提交记录列表
         """
         # 使用 repository_compare 获取两个分支之间的提交子集
+        logger.info(f"正在比较分支 {target_branch}...{source_branch}")
         comparison = self.project.repository_compare(target_branch, source_branch)
         logger.info(f"找到 {len(comparison['commits'])} 个提交记录")
         
         commits = []
         # 获取每个提交修改的文件列表，用于精确匹配提交人
-        for commit in comparison['commits']:
+        total_commits = len(comparison['commits'])
+        for idx, commit in enumerate(comparison['commits'], 1):
             modified_files = []
             try:
                 # 获取该提交修改的文件
@@ -275,6 +277,10 @@ class GitLabClient:
                             modified_files.append(diff['new_path'])
             except Exception as e:
                 logger.debug(f"无法获取提交 {commit['short_id']} 的文件列表: {e}")
+            
+            # 每10个提交打印一次进度
+            if idx % 10 == 0 or idx == total_commits:
+                logger.info(f"[进度] 正在处理提交: {idx}/{total_commits} ({commit['short_id']} - {commit['title'][:50]})")
             
             commits.append({
                 'id': commit['id'],
@@ -330,15 +336,15 @@ class GitLabClient:
                 
                 # 筛选提交（只要比匹配点更新的提交）
                 processed_count = 0
-                for commit_data in commits_List[:max_commits]:
+                for commit_data in commits_list[:max_commits]:
                     if commit_data.id == merge_base_id:
                         logger.debug(f"已经做到匹配点，停止提取")
                         break  # 已到匹配点，停止提取
                     
                     processed_count += 1
-                    logger.debug(f"正在处理提交 [{processed_count}/{len(commits_list)}]: {commit_data.short_id} - {commit_data.title[:60]}")
                     
                     try:
+                        # 获取该提交修改的文件
                         commit_detail = self.project.commits.get(commit_data.id)
                         modified_files = []
                         if hasattr(commit_detail, 'diff'):
@@ -348,6 +354,12 @@ class GitLabClient:
                     except Exception as e:
                         logger.warning(f"无法获取commit {commit_data.id} 的详细信息: {e}")
                         modified_files = []
+                    
+                    # 每10个提交打印一次进度
+                    if processed_count % 10 == 0:
+                        logger.info(f"[进度] 正在处理提交: {processed_count} ({commit_data.short_id} - {commit_data.title[:50]})")
+                    else:
+                        logger.debug(f"正在处理提交 [{processed_count}]: {commit_data.short_id} - {commit_data.title[:60]}")
                     
                     commits.append({
                         'id': commit_data.id,

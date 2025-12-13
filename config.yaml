@@ -65,6 +65,7 @@ review_rules:
       - "检查是否有XSS漏洞风险"
       - "检查敏感信息是否硬编码"
       - "检查是否有不安全的依赖"
+      - "*.conf文件中存在decode时，"
   
   性能:
     enabled: true
@@ -185,6 +186,8 @@ file_filter:
     - ".woff2"
     - ".ttf"
     - ".eot"
+    - ".sql"
+    - ".conf"
   
   # 忽略的目录列表
   ignore_dirs:

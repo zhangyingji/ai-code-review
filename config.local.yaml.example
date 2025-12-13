@@ -189,6 +189,8 @@ file_filter:
     - ".woff2"
     - ".ttf"
     - ".eot"
+    - ".sql"
+    - ".conf"
   
   # 忽略的目录列表
   ignore_dirs:
