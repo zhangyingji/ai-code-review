@@ -93,6 +93,20 @@ class ReviewEngine:
                 rules.extend(config.get('rules', []))
         return rules
     
+    def collect_review_rules_with_category(self) -> Dict[str, str]:
+        """
+        收集启用的评审规则，并返回规则到分类的映射
+        
+        Returns:
+            规则文本 -> 分类名称 的字典
+        """
+        rule_category_map = {}
+        for category, config in self.review_rules.items():
+            if config.get('enabled', False):
+                for rule in config.get('rules', []):
+                    rule_category_map[rule] = category
+        return rule_category_map
+    
     def should_review_file(self, file_path: str) -> bool:
         """
         判断文件是否需要评审
@@ -175,10 +189,12 @@ class ReviewEngine:
         review_result['new_file'] = diff_info.get('new_file', False)
         review_result['renamed_file'] = diff_info.get('renamed_file', False)
         
-        # 为每个问题添加代码段落和提交人信息
+        # 为每个问题添加代码段落、提交人信息和规则信息
         if review_result.get('issues'):
             # 根据文件路径和提交列表，找到修改该文件的提交人
             commit_author = self._get_file_commit_author(diff_info['file_path'], commits)
+            # 获取规则到分类的映射
+            rule_category_map = self.collect_review_rules_with_category()
             
             for issue in review_result['issues']:
                 # 添加提交人信息
@@ -188,6 +204,27 @@ class ReviewEngine:
                     # 如果未能从commits中找到提交人，记录警告
                     logger.warning(f"未能为文件 {file_path} 找到任何提交人，commits列表为空或无法获取: {len(commits) if commits else 0}")
                     issue['author'] = 'Unknown'
+                
+                # 添加规则信息：根据问题分类匹配对应的规则
+                issue_category = issue.get('category', '')
+                matched_rules = []
+                # 遍历规则查找匹配的规则
+                for rule, rule_cat in rule_category_map.items():
+                    # 检查规则分类是否与问题分类相关（模糊匹配）
+                    if rule_cat.lower() in issue_category.lower() or issue_category.lower() in rule_cat.lower():
+                        matched_rules.append(rule)
+                
+                # 如果没有精确匹配，尝试通过关键词匹配
+                if not matched_rules and issue_category:
+                    keywords = issue_category.lower().split()
+                    for rule, rule_cat in rule_category_map.items():
+                        rule_lower = rule.lower()
+                        if any(keyword in rule_lower for keyword in keywords):
+                            matched_rules.append(rule)
+                
+                # 将匹配的规则添加到问题中
+                issue['matched_rule'] = matched_rules[0] if matched_rules else ''
+                issue['matched_rule_category'] = rule_category_map.get(matched_rules[0], '') if matched_rules else ''
                 
                 line_info = issue.get('line', '')
                 

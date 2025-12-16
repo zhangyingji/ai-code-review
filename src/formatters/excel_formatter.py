@@ -159,11 +159,12 @@ class ExcelFormatter(BaseFormatter):
         ws_issues.column_dimensions['D'].width = 15
         ws_issues.column_dimensions['E'].width = 15
         ws_issues.column_dimensions['F'].width = 40
-        ws_issues.column_dimensions['G'].width = 60
+        ws_issues.column_dimensions['G'].width = 50
         ws_issues.column_dimensions['H'].width = 50
+        ws_issues.column_dimensions['I'].width = 25
         
         # 表头
-        headers = ["严重程度", "提交人", "文件", "行号", "方法", "问题描述", "改进建议", "问题代码"]
+        headers = ["严重程度", "提交人", "文件", "行号", "方法", "问题描述", "改进建议", "问题代码", "评审规则"]
         for col, header in enumerate(headers, 1):
             cell = ws_issues.cell(row=1, column=col)
             cell.value = header
@@ -213,8 +214,21 @@ class ExcelFormatter(BaseFormatter):
             
             ws_issues.cell(row=row, column=8).value = code_snippet_text if code_snippet_text else 'N/A'
             
+            # 添加评审规则列
+            matched_rule = issue.get('matched_rule', '')
+            matched_rule_category = issue.get('matched_rule_category', '')
+            if matched_rule and matched_rule_category:
+                rule_display = f"[{matched_rule_category}] {matched_rule}"
+            elif matched_rule:
+                rule_display = matched_rule
+            elif matched_rule_category:
+                rule_display = matched_rule_category
+            else:
+                rule_display = 'N/A'
+            ws_issues.cell(row=row, column=9).value = rule_display
+            
             # 应用样式和边框
-            for col in range(1, 9):
+            for col in range(1, 10):
                 cell = ws_issues.cell(row=row, column=col)
                 cell.border = border
                 cell.alignment = left_align
