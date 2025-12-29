@@ -115,9 +115,21 @@ review_rules:
 # 报告配置
 report:
   output_dir: "./reports"  # 报告输出目录
-  format: "html"           # 可选: html, excel
+  format: "html"           # 可选: html, excel, database
   group_by_author: true    # 是否按作者分组
   include_code_snippet: true  # 是否包含代码段落
+
+# 数据库配置(当report.format为database时生效)
+database:
+  path: "./data/review.db"  # SQLite数据库文件路径
+
+# API配置(当report.format为database时生效)
+api:
+  host: "0.0.0.0"  # API服务监听地址
+  port: 8000       # API服务监听端口
+  cors_origins:    # 允许的跨域源
+    - "http://localhost:5173"  # Vue开发服务器
+    - "http://localhost:8080"
 
 # 严重程度定义 - 提供了默认分类标准，你可以根据需求修改
 severity_definitions:

@@ -114,7 +114,7 @@ def main():
     parser.add_argument('-p', '--project', help='项目名称 (当配置中有多个项目时，用此参数选择特定项目)')
     parser.add_argument('-s', '--source', help='源分支名称 (覆盖配置文件)')
     parser.add_argument('-t', '--target', help='目标分支名称 (覆盖配置文件)')
-    parser.add_argument('-f', '--format', choices=['html', 'excel'],
+    parser.add_argument('-f', '--format', choices=['html', 'excel', 'database'],
                        help='报告格式 (覆盖配置文件)')
     parser.add_argument('-o', '--output', help='报告输出目录 (覆盖配置文件)')
     parser.add_argument('--log-level', choices=['DEBUG', 'INFO', 'WARNING', 'ERROR'],
@@ -262,21 +262,63 @@ def main():
         logger.info("=" * 60)
         review_data = review_engine.review_branches(source_branch, target_branch)
         
-        # 生成报告
-        logger.info("=" * 60)
-        logger.info("生成评审报告...")
-        logger.info("=" * 60)
-        report_generator = ReportGenerator(output_dir=output_dir)
-        report_path = report_generator.generate_report(
-            review_data=review_data,
-            format=report_format
-        )
+        # 根据format决定输出方式
+        if report_format == 'database':
+            # 保存到数据库
+            logger.info("=" * 60)
+            logger.info("保存评审结果到数据库...")
+            logger.info("=" * 60)
+            
+            from src.api.models.database import init_database, get_db
+            from src.api.services.storage_service import StorageService
+            
+            # 初始化数据库
+            db_config = config.get('database', {})
+            db_path = db_config.get('path', './data/review.db')
+            init_database(db_path)
+            
+            # 保存数据
+            db_gen = get_db()
+            db = next(db_gen)
+            try:
+                storage_service = StorageService(db)
+                session_uuid = storage_service.save_review_data(review_data)
+                
+                # 输出总结
+                logger.info("="*70)
+                logger.info("评审完成!")
+                logger.info("="*70)
+                logger.info(f"会话UUID: {session_uuid}")
+                logger.info(f"数据库路径: {db_path}")
+                
+                # 提示Web界面访问地址
+                api_config = config.get('api', {})
+                api_host = api_config.get('host', '0.0.0.0')
+                api_port = api_config.get('port', 8000)
+                if api_host == '0.0.0.0':
+                    api_host = 'localhost'
+                logger.info(f"Web界面: http://{api_host}:{api_port}")
+                logger.info(f"API文档: http://{api_host}:{api_port}/api/docs")
+            finally:
+                db.close()
+        else:
+            # 生成报告文件
+            logger.info("=" * 60)
+            logger.info("生成评审报告...")
+            logger.info("=" * 60)
+            report_generator = ReportGenerator(output_dir=output_dir)
+            report_path = report_generator.generate_report(
+                review_data=review_data,
+                format=report_format
+            )
+            
+            # 输出总结
+            logger.info("="*70)
+            logger.info("评审完成!")
+            logger.info("="*70)
+            logger.info(f"报告路径: {report_path}")
         
-        # 输出总结
-        logger.info("="*70)
-        logger.info("评审完成!")
-        logger.info("="*70)
-        logger.info(f"报告路径: {report_path}")
+        # 输出统计信息
         logger.info(f"总问题数: {review_data['statistics']['total_issues']}")
         logger.info(f"  - 严重: {review_data['statistics']['by_severity']['critical']}")
         logger.info(f"  - 主要: {review_data['statistics']['by_severity']['major']}")

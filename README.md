@@ -9,6 +9,7 @@
 
 ## 核心功能
 
+### 评审功能
 - ✅ **GitLab 集成** - 自动拉取代码差异，支持分支对比与新增文件评审
 - ✅ **智能评审** - 集成大模型进行代码分析，支持深度思考模式
 - ✅ **代码段落展示** - 显示问题所在的具体代码片段及上下文
@@ -17,8 +18,13 @@
 - ✅ **可配置规则** - 支持自定义评审规则与其启用控制
 - ✅ **并发评审** - 使用线程池实现高效的并发评审
 - ✅ **文件格式过滤** - 自定义忽略文件类型和目录
-- ✅ **提交人过滤** - 仅评审指定提交人的代码需改
-- ✅ **多格式报告** - 支持 HTML 和 Excel 两种格式报告
+- ✅ **提交人过滤** - 仅评审指定提交人的代码修改
+
+### 输出方式
+- ✅ **报告文件** - 支持 HTML 和 Excel 两种格式报告
+- ✅ **数据库存储** - 将评审结果保存到SQLite数据库
+- ✅ **Web查询界面** - 基于Vue 3 + Element Plus的在线查询系统
+- ✅ **REST API** - 提供RESTful API接口，支持第三方集成
 
 ## 快速开始
 
@@ -63,32 +69,57 @@ llm:
   model: "gpt-4"
 ```
 
-### 3. 运行
+### 3. 运行评审
+
+#### 方式1：生成报告文件（默认）
 
 ```bash
-# 使用默认配置
-python main.py
+# 生成HTML报告
+python main.py -s feature/new-feature -t main -f html
 
-# 指定源分支，自动検测创建起点
-python main.py -s feature/new-feature
-
-# 指定源分支和目标分支
-python main.py -s develop -t main
-
-# 指定项目（当配置中有多个项目时）
-python main.py -p project-name
-
-# 指定报告格式
-python main.py -f html  # html, excel
+# 生成Excel报告
+python main.py -s feature/new-feature -t main -f excel
 ```
 
+#### 方式2：保存到数据库（新功能）
 
-### 4. 查看报告
+```bash
+# 保存到数据库
+python main.py -s feature/new-feature -t main -f database
 
+# 评审完成后会显示：
+# - 会话UUID
+# - 数据库路径
+# - Web界面地址
+# - API文档地址
+```
+
+### 4. 查看结果
+
+#### 报告文件模式
 报告生成在 `./reports/` 目录：
+- **HTML 报告**：用浏览器打开，支持互动式筛选
+- **Excel 报告**：用Excel打开，便于数据分析
 
-- **HTML 报告**：用浏览器打开 HTML 文件查看，支持互动式筛选、代码段落展示
-- **Excel 报告**：用 Excel 打开 .xlsx 文件，包含多个工作表，便于数据流出和分析
+#### 数据库模式
+
+**启动API服务器**：
+```bash
+python start_api.py
+```
+
+**查看数据**：
+- API文档：http://localhost:8000/api/docs
+- Web界面：http://localhost:5173 （需先启动前端）
+
+**启动前端**（可选）：
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+详细使用请参考：[DATABASE_GUIDE.md](DATABASE_GUIDE.md)
 
 ## 配置说明
 
@@ -181,7 +212,7 @@ python main.py --help
   -p, --project          项目名称 (当配置中有多个项目时,用此参数选择特定项目)
   -s, --source           源分支
   -t, --target           目标分支
-  -f, --format           报告格式 (html/excel)
+  -f, --format           报告格式 (html/excel/database)
   -o, --output           输出目录
   --log-level            日志级别 (DEBUG/INFO/WARNING/ERROR)
   --no-group-by-author   不按作者分组
@@ -192,30 +223,33 @@ python main.py --help
 ```
 code-review/
 ├── src/
-│   ├── gitlab_client.py       # GitLab API 集成
+│   ├── api/                   # 新增：API和数据库模块
+│   │   ├── models/            # 数据库模型
+│   │   ├── schemas/           # Pydantic数据模式
+│   │   ├── services/          # 业务服务
+│   │   ├── routers/           # API路由
+│   │   └── main.py            # FastAPI应用
+│   ├── formatters/            # 报告格式化器
+│   ├── templates/             # HTML模板
+│   ├── utils/                 # 工具函数
+│   ├── gitlab_client.py       # GitLab客户端
 │   ├── llm_client.py          # 大模型客户端
 │   ├── review_engine.py       # 评审引擎
-│   ├── report_generator.py    # 报告生成器
-│   ├── formatters/            # 报告格式化器模块
-│   │   ├── base_formatter.py
-│   │   ├── html_formatter.py
-│   │   ├── excel_formatter.py
-│   │   └── __init__.py
-│   ├── templates/             # HTML 模板和样式
-│   │   ├── html_template.py
-│   │   ├── styles.py
-│   │   └── __init__.py
-│   ├── utils/                 # 工具函数
-│   │   ├── data_processor.py
-│   │   ├── helpers.py
-│   │   └── __init__.py
-│   ├── storage/               # 数据存储 (予留接口)
-│   ├── integrations/          # 系统对接 (予留接口)
-│   └── schedulers/            # 任务调度 (予留接口)
+│   └── report_generator.py    # 报告生成器
+├── frontend/                  # 新增：Vue前端项目
+│   ├── src/
+│   │   ├── api/              # API封装
+│   │   ├── views/            # 页面组件
+│   │   └── router/           # 路由配置
+│   ├── package.json
+│   └── vite.config.js
 ├── main.py                    # 主程序
-├── config.yaml             # 配置文件
-├── CHANGELOG.md            # 更新日志
-└── requirements.txt        # 依赖列表
+├── start_api.py               # 新增：API服务器启动脚本
+├── config.yaml                # 配置文件
+├── requirements.txt           # 依赖列表
+├── DATABASE_GUIDE.md          # 新增：数据库功能指南
+├── IMPLEMENTATION.md          # 新增：实施总结
+└── TESTING.md                 # 新增：快速测试指南
 ```
 
 ## 许可证
