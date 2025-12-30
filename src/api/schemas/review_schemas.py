@@ -43,13 +43,16 @@ class ReviewSessionResponse(ReviewSessionBase):
     session_uuid: str
     created_at: datetime
     severity_stats: Optional[SeverityStats] = None
+    major_critical_issues_count: int = 0
+    major_critical_accepted_count: int = 0
+    major_critical_adoption_rate: float = 0.0
     
     class Config:
         from_attributes = True
         
     @staticmethod
-    def from_orm_with_stats(session):
-        """从ORM模型创建响应，包含统计信息"""
+    def from_orm_with_stats(session, adoption_data=None):
+        """从ORM模型创建响应，包含统计信息和采纳率"""
         data = {
             "id": session.id,
             "session_uuid": session.session_uuid,
@@ -75,7 +78,10 @@ class ReviewSessionResponse(ReviewSessionBase):
                 "major": session.major_count,
                 "minor": session.minor_count,
                 "suggestion": session.suggestion_count
-            }
+            },
+            "major_critical_issues_count": adoption_data["major_critical_count"] if adoption_data else 0,
+            "major_critical_accepted_count": adoption_data["major_critical_accepted"] if adoption_data else 0,
+            "major_critical_adoption_rate": adoption_data["major_critical_adoption_rate"] if adoption_data else 0.0
         }
         return ReviewSessionResponse(**data)
 
@@ -216,13 +222,16 @@ class ReviewSessionResponse(ReviewSessionBase):
     session_uuid: str
     created_at: datetime
     severity_stats: Optional[SeverityStats] = None
+    major_critical_issues_count: int = 0
+    major_critical_accepted_count: int = 0
+    major_critical_adoption_rate: float = 0.0
     
     class Config:
         from_attributes = True
         
     @staticmethod
-    def from_orm_with_stats(session):
-        """从ORM模型创建响应，包含统计信息"""
+    def from_orm_with_stats(session, adoption_data=None):
+        """从ORM模型创建响应，包含统计信息和采纳率"""
         data = {
             "id": session.id,
             "session_uuid": session.session_uuid,
@@ -248,7 +257,10 @@ class ReviewSessionResponse(ReviewSessionBase):
                 "major": session.major_count,
                 "minor": session.minor_count,
                 "suggestion": session.suggestion_count
-            }
+            },
+            "major_critical_issues_count": adoption_data["major_critical_count"] if adoption_data else 0,
+            "major_critical_accepted_count": adoption_data["major_critical_accepted"] if adoption_data else 0,
+            "major_critical_adoption_rate": adoption_data["major_critical_adoption_rate"] if adoption_data else 0.0
         }
         return ReviewSessionResponse(**data)
 

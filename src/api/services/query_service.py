@@ -30,6 +30,38 @@ class QueryService:
         """
         self.db = db_session
     
+    def _calculate_adoption_rate(self, session_id: int) -> dict:
+        """
+        计算评审会话的采纳率
+        
+        Args:
+            session_id: 会话ID
+            
+        Returns:
+            包含采纳率数据的字典
+        """
+        # 统计严重和主要问题总数
+        major_critical_count = self.db.query(func.count(ReviewIssue.id)).filter(
+            ReviewIssue.session_id == session_id,
+            ReviewIssue.severity.in_(['critical', 'major'])
+        ).scalar() or 0
+        
+        # 统计严重和主要问题中被接受的数量
+        major_critical_accepted = self.db.query(func.count(ReviewIssue.id)).filter(
+            ReviewIssue.session_id == session_id,
+            ReviewIssue.severity.in_(['critical', 'major']),
+            ReviewIssue.confirm_status == 'accepted'
+        ).scalar() or 0
+        
+        # 计算采纳率
+        major_critical_adoption_rate = round((major_critical_accepted / major_critical_count) * 100, 2) if major_critical_count > 0 else 0.0
+        
+        return {
+            "major_critical_count": major_critical_count,
+            "major_critical_accepted": major_critical_accepted,
+            "major_critical_adoption_rate": major_critical_adoption_rate
+        }
+    
     def get_review_sessions(self,
                            page: int = 1,
                            page_size: int = 20,
@@ -87,8 +119,11 @@ class QueryService:
         offset = (page - 1) * page_size
         sessions = query.order_by(desc(ReviewSession.review_time)).offset(offset).limit(page_size).all()
         
-        # 转换为响应模型
-        items = [ReviewSessionResponse.from_orm_with_stats(s) for s in sessions]
+        # 转换为响应模型，计算采纳率
+        items = []
+        for s in sessions:
+            adoption_data = self._calculate_adoption_rate(s.id)
+            items.append(ReviewSessionResponse.from_orm_with_stats(s, adoption_data))
         
         return ReviewSessionListResponse(
             total=total,
@@ -110,7 +145,9 @@ class QueryService:
         session = self.db.query(ReviewSession).filter(ReviewSession.id == session_id).first()
         if not session:
             return None
-        return ReviewSessionResponse.from_orm_with_stats(session)
+        # 计算采纳率
+        adoption_data = self._calculate_adoption_rate(session_id)
+        return ReviewSessionResponse.from_orm_with_stats(session, adoption_data)
     
     def get_review_issues(self,
                          session_id: int,
@@ -363,6 +400,38 @@ class QueryService:
         """
         self.db = db_session
     
+    def _calculate_adoption_rate(self, session_id: int) -> dict:
+        """
+        计算评审会话的采纳率
+        
+        Args:
+            session_id: 会话ID
+            
+        Returns:
+            包含采纳率数据的字典
+        """
+        # 统计严重和主要问题总数
+        major_critical_count = self.db.query(func.count(ReviewIssue.id)).filter(
+            ReviewIssue.session_id == session_id,
+            ReviewIssue.severity.in_(['critical', 'major'])
+        ).scalar() or 0
+        
+        # 统计严重和主要问题中被接受的数量
+        major_critical_accepted = self.db.query(func.count(ReviewIssue.id)).filter(
+            ReviewIssue.session_id == session_id,
+            ReviewIssue.severity.in_(['critical', 'major']),
+            ReviewIssue.confirm_status == 'accepted'
+        ).scalar() or 0
+        
+        # 计算采纳率
+        major_critical_adoption_rate = round((major_critical_accepted / major_critical_count) * 100, 2) if major_critical_count > 0 else 0.0
+        
+        return {
+            "major_critical_count": major_critical_count,
+            "major_critical_accepted": major_critical_accepted,
+            "major_critical_adoption_rate": major_critical_adoption_rate
+        }
+    
     def get_review_sessions(self,
                            page: int = 1,
                            page_size: int = 20,
@@ -420,8 +489,11 @@ class QueryService:
         offset = (page - 1) * page_size
         sessions = query.order_by(desc(ReviewSession.review_time)).offset(offset).limit(page_size).all()
         
-        # 转换为响应模型
-        items = [ReviewSessionResponse.from_orm_with_stats(s) for s in sessions]
+        # 转换为响应模型，计算采纳率
+        items = []
+        for s in sessions:
+            adoption_data = self._calculate_adoption_rate(s.id)
+            items.append(ReviewSessionResponse.from_orm_with_stats(s, adoption_data))
         
         return ReviewSessionListResponse(
             total=total,
@@ -443,7 +515,9 @@ class QueryService:
         session = self.db.query(ReviewSession).filter(ReviewSession.id == session_id).first()
         if not session:
             return None
-        return ReviewSessionResponse.from_orm_with_stats(session)
+        # 计算采纳率
+        adoption_data = self._calculate_adoption_rate(session_id)
+        return ReviewSessionResponse.from_orm_with_stats(session, adoption_data)
     
     def get_review_issues(self,
                          session_id: int,

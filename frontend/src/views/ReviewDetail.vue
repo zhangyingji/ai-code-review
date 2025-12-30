@@ -56,8 +56,8 @@
       </el-form>
 
       <!-- 问题表格 -->
-      <el-table :data="issueData" stripe>
-        <el-table-column type="selection" width="55" fixed="left" />
+      <el-table :data="issueData" stripe height="400">
+
         <el-table-column type="index" width="50" fixed="left" />
         <el-table-column prop="severity" label="严重程度" width="100" fixed="left">
           <template #default="{ row }">
@@ -205,10 +205,157 @@ const getSeverityLabel = (severity) => {
   return labels[severity] || severity
 }
 
+// 模拟数据 - 评审信息
+const mockSessionInfo = {
+  review_branch: 'feature/new-ui',
+  base_branch: 'main',
+  review_time: '2025-12-29T15:30:00',
+  total_issues: 27,
+  total_files_reviewed: 15,
+  total_commits: 10
+}
+
+// 模拟数据 - 问题列表
+const mockIssues = {
+  items: [
+    {
+      id: 1,
+      severity: 'critical',
+      author: '张三',
+      file_path: 'src/review_engine.py',
+      line_info: '45-50',
+      method_name: 'analyze_code',
+      description: '缺少异常处理机制',
+      suggestion: '添加try-except块处理可能的异常',
+      confirm_status: 'pending',
+      is_fixed: false,
+      review_comment: ''
+    },
+    {
+      id: 2,
+      severity: 'major',
+      author: '李四',
+      file_path: 'src/utils/string_utils.py',
+      line_info: '23',
+      method_name: 'format_string',
+      description: '字符串格式化使用了不推荐的方法',
+      suggestion: '使用f-strings替代传统格式化方法',
+      confirm_status: 'accepted',
+      is_fixed: true,
+      review_comment: '已修复'
+    },
+    {
+      id: 3,
+      severity: 'minor',
+      author: '张三',
+      file_path: 'src/api/main.py',
+      line_info: '120',
+      method_name: 'create_api_router',
+      description: '函数参数过多',
+      suggestion: '考虑使用dataclass或字典封装参数',
+      confirm_status: 'pending',
+      is_fixed: false,
+      review_comment: ''
+    },
+    {
+      id: 4,
+      severity: 'suggestion',
+      author: '王五',
+      file_path: 'src/templates/report.html',
+      line_info: '56',
+      method_name: 'render_report',
+      description: 'HTML标签未闭合',
+      suggestion: '检查并修复未闭合的HTML标签',
+      confirm_status: 'rejected',
+      is_fixed: false,
+      review_comment: '不影响功能，暂时保留'
+    },
+    {
+      id: 5,
+      severity: 'critical',
+      author: '李四',
+      file_path: 'src/llm_client.py',
+      line_info: '89-95',
+      method_name: 'call_llm_api',
+      description: '缺少超时控制',
+      suggestion: '添加超时参数，防止API调用无限等待',
+      confirm_status: 'pending',
+      is_fixed: false,
+      review_comment: ''
+    },
+    {
+      id: 6,
+      severity: 'major',
+      author: '张三',
+      file_path: 'src/gitlab_client.py',
+      line_info: '34',
+      method_name: 'get_project_info',
+      description: '硬编码的API端点',
+      suggestion: '将API端点配置化，便于维护',
+      confirm_status: 'accepted',
+      is_fixed: false,
+      review_comment: '计划在下个版本修复'
+    },
+    {
+      id: 7,
+      severity: 'minor',
+      author: '王五',
+      file_path: 'src/formatters/excel_formatter.py',
+      line_info: '156',
+      method_name: 'write_summary',
+      description: '魔法数值使用',
+      suggestion: '将魔法数值定义为常量',
+      confirm_status: 'pending',
+      is_fixed: false,
+      review_comment: ''
+    },
+    {
+      id: 8,
+      severity: 'suggestion',
+      author: '李四',
+      file_path: 'src/utils/file_utils.py',
+      line_info: '78',
+      method_name: 'read_file_content',
+      description: '文件读取模式未指定编码',
+      suggestion: '添加encoding参数，确保跨平台兼容性',
+      confirm_status: 'pending',
+      is_fixed: false,
+      review_comment: ''
+    },
+    {
+      id: 9,
+      severity: 'major',
+      author: '张三',
+      file_path: 'src/report_generator.py',
+      line_info: '201-210',
+      method_name: 'generate_html_report',
+      description: 'HTML模板渲染逻辑复杂',
+      suggestion: '将渲染逻辑拆分为多个子函数',
+      confirm_status: 'pending',
+      is_fixed: false,
+      review_comment: ''
+    },
+    {
+      id: 10,
+      severity: 'minor',
+      author: '王五',
+      file_path: 'src/config.py',
+      line_info: '45',
+      method_name: 'load_config',
+      description: '配置文件路径硬编码',
+      suggestion: '支持通过命令行参数指定配置文件路径',
+      confirm_status: 'pending',
+      is_fixed: false,
+      review_comment: ''
+    }
+  ],
+  total: 10
+}
+
 const loadSessionInfo = async () => {
   try {
-    const res = await api.getReviewDetail(route.params.id)
-    sessionInfo.value = res
+    // 使用模拟数据替代真实API调用
+    sessionInfo.value = mockSessionInfo
   } catch (error) {
     ElMessage.error('加载评审信息失败')
     console.error(error)
@@ -218,28 +365,9 @@ const loadSessionInfo = async () => {
 const loadIssues = async () => {
   loading.value = true
   try {
-    const params = {
-      page: pagination.page,
-      page_size: pagination.page_size
-    }
-    
-    // 处理筛选参数
-    if (filterForm.severity && filterForm.severity.length > 0) {
-      params.severity = filterForm.severity.join(',')
-    }
-    if (filterForm.author) {
-      params.author = filterForm.author
-    }
-    if (filterForm.confirm_status) {
-      params.confirm_status = filterForm.confirm_status
-    }
-    if (filterForm.is_fixed !== '') {
-      params.is_fixed = filterForm.is_fixed
-    }
-    
-    const res = await api.getIssues(route.params.id, params)
-    issueData.value = res.items
-    pagination.total = res.total
+    // 使用模拟数据替代真实API调用
+    issueData.value = mockIssues.items
+    pagination.total = mockIssues.total
   } catch (error) {
     ElMessage.error('加载问题列表失败')
     console.error(error)
@@ -326,7 +454,6 @@ onMounted(() => {
 
 <style scoped>
 .review-detail {
-  max-width: 1400px;
   margin: 0 auto;
 }
 

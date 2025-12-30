@@ -29,11 +29,12 @@
             value-format="YYYY-MM-DD"
           />
         </el-form-item>
-        <el-form-item>
-          <el-button type="primary" @click="handleSearch">查询</el-button>
-          <el-button @click="handleReset">重置</el-button>
-        </el-form-item>
       </el-form>
+      <!-- 按钮区 -->
+      <div class="button-area">
+        <el-button type="primary" @click="handleSearch">查询</el-button>
+        <el-button @click="handleReset">重置</el-button>
+      </div>
 
       <!-- 表格区 -->
       <el-table :data="tableData" stripe v-loading="loading">
@@ -63,9 +64,28 @@
         </el-table-column>
         <el-table-column prop="total_files_reviewed" label="评审文件数" width="120" align="center" />
         <el-table-column prop="total_issues" label="总问题数" width="120" align="center" />
+        <el-table-column width="150" align="center">
+          <template #header>
+            <div class="header-with-tooltip">
+              采纳率
+              <el-tooltip content="统计范围：严重和主要问题" placement="top">
+                <el-icon class="info-icon"><QuestionFilled /></el-icon>
+              </el-tooltip>
+            </div>
+          </template>
+          <template #default="{ row }">
+            <span 
+              :class="getAdoptionRateClass(row.major_critical_adoption_rate)" 
+              v-if="row.major_critical_issues_count > 0"
+            >
+              {{ row.major_critical_adoption_rate }}%
+            </span>
+            <span v-else>-</span>
+          </template>
+        </el-table-column>
         <el-table-column label="操作" width="120" fixed="right">
           <template #default="{ row }">
-            <el-button type="primary" size="small" @click="viewDetail(row.id)">查看详情</el-button>
+            <el-button type="primary" size="small" @click="viewDetail(row.id)">评审详情</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -89,6 +109,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import { QuestionFilled } from '@element-plus/icons-vue'
 import api from '../api/review'
 
 const router = useRouter()
@@ -122,24 +143,39 @@ const formatDateTime = (dateStr) => {
   return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`
 }
 
+// 获取采纳率样式类
+const getAdoptionRateClass = (rate) => {
+  if (rate >= 80) {
+    return 'high-rate'
+  } else if (rate >= 50) {
+    return 'medium-rate'
+  } else {
+    return 'low-rate'
+  }
+}
+
 // 加载数据
 const loadData = async () => {
   loading.value = true
   try {
+    // 调用真实API
     const params = {
       page: pagination.page,
       page_size: pagination.page_size,
-      ...filterForm
+      project_name: filterForm.project_name,
+      review_branch: filterForm.review_branch,
+      base_branch: filterForm.base_branch
     }
     
+    // 如果有日期范围，添加到参数中
     if (dateRange.value && dateRange.value.length === 2) {
       params.start_date = dateRange.value[0]
       params.end_date = dateRange.value[1]
     }
     
-    const res = await api.getReviews(params)
-    tableData.value = res.items
-    pagination.total = res.total
+    const response = await api.getReviews(params)
+    tableData.value = response.items
+    pagination.total = response.total
   } catch (error) {
     ElMessage.error('加载数据失败')
     console.error(error)
@@ -188,7 +224,6 @@ onMounted(() => {
 
 <style scoped>
 .review-list {
-  max-width: 1400px;
   margin: 0 auto;
 }
 
@@ -201,7 +236,40 @@ onMounted(() => {
   margin-bottom: 20px;
 }
 
+.button-area {
+  text-align: center;
+  margin-bottom: 20px;
+}
+
 .el-tag {
   margin-right: 8px;
+}
+
+.header-with-tooltip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  
+  .info-icon {
+    margin-left: 4px;
+    color: #909399;
+    font-size: 14px;
+    cursor: help;
+  }
+}
+
+.high-rate {
+  color: #67c23a;
+  font-weight: 500;
+}
+
+.medium-rate {
+  color: #e6a23c;
+  font-weight: 500;
+}
+
+.low-rate {
+  color: #f56c6c;
+  font-weight: 500;
 }
 </style>
