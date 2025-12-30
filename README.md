@@ -223,7 +223,7 @@ python main.py --help
 ```
 code-review/
 ├── src/
-│   ├── api/                   # 新增：API和数据库模块
+│   ├── api/                   # API和数据库模块
 │   │   ├── models/            # 数据库模型
 │   │   ├── schemas/           # Pydantic数据模式
 │   │   ├── services/          # 业务服务
@@ -236,7 +236,7 @@ code-review/
 │   ├── llm_client.py          # 大模型客户端
 │   ├── review_engine.py       # 评审引擎
 │   └── report_generator.py    # 报告生成器
-├── frontend/                  # 新增：Vue前端项目
+├── frontend/                  # Vue前端项目
 │   ├── src/
 │   │   ├── api/              # API封装
 │   │   ├── views/            # 页面组件
@@ -244,12 +244,9 @@ code-review/
 │   ├── package.json
 │   └── vite.config.js
 ├── main.py                    # 主程序
-├── start_api.py               # 新增：API服务器启动脚本
+├── start_api.py               # API服务器启动脚本
 ├── config.yaml                # 配置文件
 ├── requirements.txt           # 依赖列表
-├── DATABASE_GUIDE.md          # 新增：数据库功能指南
-├── IMPLEMENTATION.md          # 新增：实施总结
-└── TESTING.md                 # 新增：快速测试指南
 ```
 
 ## 许可证
