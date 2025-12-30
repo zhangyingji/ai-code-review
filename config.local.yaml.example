@@ -128,7 +128,7 @@ database:
 
 # API配置(当report.format为database时生效)
 api:
-  host: "0.0.0.0"  # API服务监听地址
+  host: "localhost"  # API服务监听地址
   port: 8000       # API服务监听端口
   cors_origins:    # 允许的跨域源
     - "http://localhost:5173"  # Vue开发服务器
